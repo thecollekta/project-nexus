@@ -1,0 +1,17 @@
+-r base.txt
+dj-database-url>=3.0.1
+
+# Security
+django-csp>=4.0
+django-ratelimit>=4.1.0
+
+# Performance
+django-silk>=5.4.3
+gunicorn>=23.0.0
+
+# Production monitoring and logging
+sentry-sdk[django]>=2.37.1
+structlog>=25.4.0
+
+# Core
+whitenoise>=6.10.0

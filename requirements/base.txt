@@ -1,0 +1,27 @@
+# Core Django dependencies
+Django>=5.2.6
+django-cors-headers>=4.7.0
+django-environ>=0.12.0
+django-filter>=25.1.0
+psycopg2-binary==2.9.10
+
+# API Framework
+djangorestframework>=3.16.1
+djangorestframework-simplejwt>=5.5.1
+drf-spectacular>=0.28.0
+graphene>=3.4.3
+graphene-django>=3.2.3
+graphql-core>=3.2.6
+graphql-relay>=3.2.0
+hiredis>=3.2.1
+
+# Utilities
+Pillow>=11.3.0
+python-json-logger>=3.3.0
+redis>=6.4.0
+requests>=2.32.5
+
+# Background Tasks
+celery>=5.5.3
+django-celery-beat>=2.8.1
+django-celery-results>=2.6.0

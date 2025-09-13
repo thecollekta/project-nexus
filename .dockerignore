@@ -1,0 +1,94 @@
+# .dockerignore
+
+# Git
+.git
+.gitignore
+.gitattributes
+README.md
+CHANGELOG.md
+
+# Docker
+.docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Virtual environment
+.venv
+venv/
+ENV/
+env/
+.env
+.env.*
+.venv/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Media files (optional - uncomment if you don't want to include media files)
+# media/
+
+# Static files (will be collected during build)
+staticfiles/
+static/
+
+# Node modules (if any)
+node_modules/
+
+# Backup files
+*.bak
+*.tmp
+
+# Documentation
+docs/
+_build/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+temp/
+tmp/
