@@ -5,13 +5,11 @@ Base models for the e-commerce application.
 Provides common functionality that can be inherited by other models.
 """
 
+import typing
 import uuid
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.db import models
-
-User = get_user_model()
 
 
 class AuditStampedModelBase(models.Model):
@@ -28,11 +26,13 @@ class AuditStampedModelBase(models.Model):
     )
 
     created_at: models.DateTimeField = models.DateTimeField(
-        auto_now_add=True, help_text="When this record was created"
+        auto_now_add=True,
+        help_text="When this record was created",
     )
 
     updated_at: models.DateTimeField = models.DateTimeField(
-        auto_now=True, help_text="When this record was last updated"
+        auto_now=True,
+        help_text="When this record was last updated",
     )
 
     created_by: models.ForeignKey = models.ForeignKey(
@@ -54,12 +54,13 @@ class AuditStampedModelBase(models.Model):
     )
 
     is_active: models.BooleanField = models.BooleanField(
-        default=True, help_text="Whether this record is active"
+        default=True,
+        help_text="Whether this record is active",
     )
 
     class Meta:
         abstract = True
-        ordering = ["-created_at"]
+        ordering: typing.ClassVar[list[str]] = ["-created_at"]
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} {self.id}"
@@ -78,6 +79,13 @@ class ActiveManager(models.Manager):
         """Override to filter out soft-deleted records by default."""
         return super().get_queryset().filter(is_active=True)
 
+    def get_by_natural_key(self, username):
+        """
+        Look up a user by the username field for authentication.
+        This is required for Django's authentication system to work with custom user models.
+        """
+        return self.get_queryset().get(username=username)
+
 
 class AllObjectsManager(models.Manager):
     """
@@ -88,6 +96,13 @@ class AllObjectsManager(models.Manager):
     def get_queryset(self):
         """Return all objects regardless of is_active status."""
         return super().get_queryset()
+
+    def get_by_natural_key(self, username):
+        """
+        Look up a user by the username field for authentication.
+        This is required for Django's authentication system to work with custom user models.
+        """
+        return self.get_queryset().get(username=username)
 
 
 # Example usage in a model:
