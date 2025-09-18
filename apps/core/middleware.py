@@ -9,8 +9,10 @@ It's particularly useful for audit logging and automatic user tracking in models
 """
 
 import threading
+import time
 from collections.abc import Callable
 
+import structlog
 from django.http import HttpRequest, HttpResponse
 
 # Thread local storage for the current request
@@ -29,8 +31,7 @@ class CurrentUserMiddleware:
         _request.request = request
 
         try:
-            response = self.get_response(request)
-            return response
+            return self.get_response(request)
         finally:
             # Clean up after the response is processed
             if hasattr(_request, "user"):
@@ -56,16 +57,37 @@ def get_current_request():
 
 
 class PerformanceMiddleware:
-    def resolve(self, next, root, info, **args):
+    def resolve(self, next_resolver, root, info, **args):
         # Add performance tracking
-        import time
-
         start_time = time.time()
-        result = next(root, info, **args)
+        result = next_resolver(root, info, **args)
         duration = time.time() - start_time
 
-        # Log slow queries
-        if duration > 1.0:  # More than 1 second
-            print(f"Slow GraphQL query: {info.operation.name} took {duration:.2f}s")
+        try:
+            logger = structlog.get_logger("graphql.performance")
+            operation = getattr(getattr(info, "operation", None), "name", None)
+            op_name = getattr(operation, "value", None) if operation else None
+            field = getattr(info, "field_name", None)
+            parent_type = getattr(getattr(info, "parent_type", None), "name", None)
+
+            if duration > 1.0:
+                logger.warning(
+                    "graphql_field_slow",
+                    operation=op_name,
+                    parent_type=parent_type,
+                    field=field,
+                    duration_ms=int(duration * 1000),
+                )
+            else:
+                logger.info(
+                    "graphql_field",
+                    operation=op_name,
+                    parent_type=parent_type,
+                    field=field,
+                    duration_ms=int(duration * 1000),
+                )
+        except Exception as e:
+            logger = structlog.get_logger("graphql.performance")
+            logger.exception("graphql_performance_logging_failed", error=str(e))
 
         return result
