@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email Address</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            max-width: 200px;
+            height: auto;
+        }
+
+        .content {
+            padding: 20px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+
+        .verification-code {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        {% if site_name %}
+        <h1>{{ site_name }}</h1>
+        {% else %}
+        <h1>Email Verification</h1>
+        {% endif %}
+    </div>
+
+    <div class="content">
+        <p>Hello {{ user.get_full_name|default:user.username }},</p>
+
+        <p>Thank you for signing up! Please verify your email address by clicking the button below:</p>
+
+        <p style="text-align: center;">
+            <a href="{{ verification_url }}" class="button">Verify Email Address</a>
+        </p>
+
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all;">{{ verification_url }}</p>
+
+        <p>If you did not create an account, you can safely ignore this email.</p>
+
+        <p>Best regards,<br>The {{ site_name|default:"" }} Team</p>
+    </div>
+
+    <div class="footer">
+        <p>This email was sent to {{ user.email }}. If you didn't request this email, please ignore it.</p>
+        <p>&copy; {% now "Y" %} {{ site_name|default:"" }}. All rights reserved.</p>
+    </div>
+</body>
+
+</html>
