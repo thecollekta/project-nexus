@@ -1,7 +1,6 @@
 # ecommerce_backend/settings/base.py
 
 
-import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -19,7 +18,23 @@ env = environ.Env(
     DB_PASSWORD=(str, "DB_PASSWORD"),
     DB_HOST=(str, "DB_HOST"),
     DB_PORT=(str, "DB_PORT"),
+    EMAIL_HOST=(str, "EMAIL_HOST"),
+    EMAIL_PORT=(int, "EMAIL_PORT"),
+    EMAIL_USE_TLS=(bool, "EMAIL_USE_TLS"),
+    EMAIL_HOST_USER=(str, "EMAIL_HOST_USER"),
+    EMAIL_HOST_PASSWORD=(str, "EMAIL_HOST_PASSWORD"),
+    DEFAULT_FROM_EMAIL=(str, "DEFAULT_FROM_EMAIL"),
+    SERVER_EMAIL=(str, "SERVER_EMAIL"),
+    FRONTEND_URL=(str, "FRONTEND_URL"),
+    SITE_NAME=(str, "SITE_NAME"),
+    SITE_DOMAIN=(str, "SITE_DOMAIN"),
     CORS_ALLOWED_ORIGINS=(list, ["CORS_ALLOWED_ORIGINS"]),
+    SESSION_ENGINE=(str, "django.contrib.sessions.backends.cache"),
+    SESSION_COOKIE_SECURE=(bool, False),
+    CSRF_COOKIE_SECURE=(bool, False),
+    SESSION_EXPIRE_AT_BROWSER_CLOSE=(bool, False),
+    SESSION_COOKIE_AGE=(int, "SESSION_COOKIE_AGE"),
+    REDIS_URL=(str, "REDIS_URL"),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -57,15 +72,20 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",  # For PostgreSQL index feature
     # Third-party apps
     "corsheaders",
     "django_filters",
+    "django_celery_beat",
     "drf_spectacular",
+    "drf_spectacular_sidecar",  # Required for production schema collection
     "graphene_django",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     # Local apps
     "apps.core.apps.CoreConfig",
+    "apps.accounts.apps.AccountsConfig",
 ]
 
 MIDDLEWARE = [
@@ -107,6 +127,14 @@ DATABASES = {
     "default": env.db(),
 }
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    "apps.accounts.backends.EmailBackend",  # Custom email auth backend
+    "django.contrib.auth.backends.ModelBackend",  # Default Django auth backend
+]
+
+# Custom user model
+AUTH_USER_MODEL = "accounts.User"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -140,16 +168,81 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Media files
 MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Session settings
+SESSION_ENGINE = env.str("SESSION_ENGINE")
+SESSION_CACHE_ALIAS = "sessions"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE")
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE")
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool("SESSION_EXPIRE_AT_BROWSER_CLOSE")
+SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE")
+
+# Cache settings
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,
+        },
+        "KEY_PREFIX": "ecommerce",
+    },
+    "sessions": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/2"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "ecommerce_sessions",
+    },
+}
+
+# Celery Configuration
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+CELERY_TASK_EAGER_PROPAGATES = True
+
+
+# Email Backend Configuration
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = env("EMAIL_HOST")
+EMAIL_PORT = env.int("EMAIL_PORT")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+SERVER_EMAIL = env("SERVER_EMAIL")
+
+# Frontend URL for password reset links
+FRONTEND_URL = env("FRONTEND_URL")
+
+# Site information
+SITE_NAME = env("SITE_NAME")
+SITE_DOMAIN = env("SITE_DOMAIN")
+
+# Password reset timeout (in seconds, 24 hours)
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hours
+
+# Authentication URLs
+LOGIN_URL = "/api/v1/accounts/login/"
 
 # Rest Framework Configuration
 REST_FRAMEWORK = {
@@ -199,14 +292,6 @@ if DEBUG:
         "rest_framework.renderers.BrowsableAPIRenderer",
     ]
 
-# Cache configuration (required for throttling)
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-    }
-}
-
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 
@@ -218,7 +303,7 @@ else:
 
 # JWT Configuration
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=240),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -233,22 +318,17 @@ SIMPLE_JWT = {
 
 # Swagger/OpenAPI Configuration
 SPECTACULAR_SETTINGS = {
-    "TITLE": "ALX E-Commerce Backend API",
-    "DESCRIPTION": "A complete backend API for an e-commerce platform, built for the ALX ProDev program.",
+    "TITLE": "Project Nexus E-commerce API",
+    "DESCRIPTION": "Comprehensive e-commerce backend API with REST and GraphQL support",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "SCHEMA_PATH_PREFIX": "/api/v1/",
-    "COMPONENT_SPLIT_REQUEST": True,
-    "SORT_OPERATIONS": False,
-    # "SIGNING_KEY": settings.SECRET_KEY,
     "SWAGGER_UI_SETTINGS": {
         "deepLinking": True,
         "persistAuthorization": True,
-        "displayOperationId": False,
+        "displayOperationId": True,
     },
-    "AUTHENTICATION_WHITELIST": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication"
-    ],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": r"/api/v[0-9]",
 }
 
 # GraphQL Configuration
@@ -258,11 +338,6 @@ GRAPHENE = {
         "apps.core.middleware.PerformanceMiddleware",
     ],
 }
-
-# Custom authentication backends
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-]
 
 
 # Logging Configuration

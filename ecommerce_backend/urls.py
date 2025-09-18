@@ -1,3 +1,5 @@
+# ecommerce_backend/urls.py
+
 """
 URL configuration for ecommerce_backend project.
 
@@ -15,13 +17,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
-from drf_spectacular.views import (SpectacularAPIView, SpectacularRedocView,
-                                   SpectacularSwaggerView)
-from rest_framework_simplejwt.views import (TokenObtainPairView,
-                                            TokenRefreshView, TokenVerifyView)
+from django.views.decorators.csrf import csrf_exempt
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+from graphene_django.views import GraphQLView
 
 
 def health_check(request):
@@ -44,36 +51,20 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
+    # GraphQL documentation
+    path("graphql", csrf_exempt(GraphQLView.as_view(graphiql=True))),
     path(
         "api/v1/",
         include(
             [
-                # JWT Authentication
-                path(
-                    "auth/",
-                    include(
-                        [
-                            path(
-                                "token/",
-                                TokenObtainPairView.as_view(),
-                                name="token_obtain_pair",
-                            ),
-                            path(
-                                "token/refresh/",
-                                TokenRefreshView.as_view(),
-                                name="token_refresh",
-                            ),
-                            path(
-                                "token/verify/",
-                                TokenVerifyView.as_view(),
-                                name="token_verify",
-                            ),
-                            # Accounts app URLs for authentication
-                        ]
-                    ),
-                ),
                 # App routers
+                path("accounts/", include("apps.accounts.urls")),
             ]
         ),
     ),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
