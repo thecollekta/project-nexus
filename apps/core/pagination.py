@@ -227,7 +227,7 @@ class CustomLimitOffsetPagination(LimitOffsetPagination):
             previous_offset = max(0, offset - limit)
 
         remaining = (
-            max(0, count - (offset + limit))
+            max(0, count - (offset + limit)) # type: ignore
             if all(isinstance(x, int) for x in [offset, limit, count])
             else 0
         )
