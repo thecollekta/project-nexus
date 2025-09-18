@@ -5,6 +5,8 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+import structlog
+from structlog.stdlib import ProcessorFormatter
 
 # Initialize environ
 env = environ.Env(
@@ -318,7 +320,7 @@ SIMPLE_JWT = {
 
 # Swagger/OpenAPI Configuration
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Project Nexus E-commerce API",
+    "TITLE": "ALX E-Commerce API",
     "DESCRIPTION": "Comprehensive e-commerce backend API with REST and GraphQL support",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
@@ -386,3 +388,44 @@ LOGGING = {
         "level": "WARNING",
     },
 }
+
+
+_PRE_CHAIN = [
+    structlog.contextvars.merge_contextvars,
+    structlog.processors.add_log_level,
+    structlog.processors.TimeStamper(fmt="iso"),
+]
+
+# Add a JSON formatter for structlog -> stdlib
+LOGGING["formatters"]["json"] = {
+    "()": ProcessorFormatter,
+    "processor": structlog.processors.JSONRenderer(),
+    "foreign_pre_chain": _PRE_CHAIN,
+}
+
+# Use JSON on console (stdout); keep file handler as-is
+LOGGING["handlers"]["console"]["formatter"] = "json"
+
+# Ensure the root logger sends to console (JSON)
+LOGGING["root"] = {
+    "handlers": ["console"],
+    "level": "INFO",
+}
+
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
