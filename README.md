@@ -4,18 +4,19 @@ A robust, scalable, and secure Django-based e-commerce backend with REST and Gra
 
 ## Project Overview
 
-A high-performance **E-Commerce Backend API** built with Django and Django REST Framework, designed as
-part of the ALX ProDev program. This project serves as a robust foundation for building scalable
-e-commerce platforms with modern development practices.
+A high-performance **E-Commerce Backend API** built with Django and Django REST Framework, designed as part of the ALX ProDev program. This project serves as a robust foundation for building scalable e-commerce platforms with modern development practices.
 
 ## Tech Stack
 
 - **Backend Framework**: [Django 5.2.6+](https://www.djangoproject.com/)
 - **Database**: [PostgreSQL](https://www.postgresql.org/) (via psycopg)
-- **API**: [Django REST Framework](https://www.django-rest-framework.org/) with [SimpleJWT](https://github.com/jazzband/djangorestframework-simplejwt)
+- **API**:
+  - [Django REST Framework](https://www.django-rest-framework.org/) with [SimpleJWT](https://github.com/jazzband/djangorestframework-simplejwt)
+  - [Graphene-Django](https://docs.graphene-python.org/projects/django/) for GraphQL API
 - **Async Tasks**: [Celery](https://docs.celeryq.dev/) with [Redis](https://redis.io/)
-- **Documentation**: [DRF Spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3.0)
-- **GraphQL**: [Graphene-Django](https://docs.graphene-python.org/projects/django/)
+- **Documentation**:
+  - [DRF Spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3.0) for REST API
+  - Interactive GraphQL Playground
 - **Monitoring**: [Sentry SDK](https://docs.sentry.io/)
 - **Code Quality**: [Black](https://black.readthedocs.io/), [Ruff](https://beta.ruff.rs/), [mypy](http://mypy-lang.org/)
 
@@ -31,11 +32,8 @@ e-commerce platforms with modern development practices.
     - [API Features](#api-features)
     - [Development Tools](#development-tools)
   - [Project Structure](#project-structure)
-  - [API Documentation](#api-documentation)
-    - [Interactive Documentation](#interactive-documentation)
-    - [Authentication](#authentication)
     - [Available Endpoints](#available-endpoints)
-      - [Available Endpoints Authentication](#available-endpoints-authentication)
+      - [Authentication](#authentication)
       - [User Profile](#user-profile)
   - [Testing](#testing)
   - [Development Workflow](#development-workflow)
@@ -62,11 +60,23 @@ e-commerce platforms with modern development practices.
 
 ### API Features
 
-- RESTful API design with consistent response formats
-- Advanced filtering, searching, and sorting
-- Pagination support
-- GraphQL endpoint (Coming Soon)
-- Comprehensive API documentation (Swagger/ReDoc)
+- **Dual API Support**:
+  - **RESTful API** with consistent response formats
+  - **GraphQL API** for flexible data querying
+- **Authentication**:
+  - JWT Authentication with refresh tokens
+  - Social authentication (OAuth2)
+  - Email verification
+  - Password reset flow
+- **Advanced Features**:
+  - Rate limiting and throttling
+  - Request/Response logging
+  - Comprehensive error handling
+  - CORS and CSRF protection
+- **Documentation**:
+  - Interactive Swagger/ReDoc for REST API
+  - GraphQL Playground with schema introspection
+  - Detailed API reference in [docs](./docs/) directory
 
 ### Development Tools
 
@@ -89,8 +99,12 @@ project-nexus/
 │   │   ├── serializers.py       # Serializers for user data
 │   │   └── views.py             # Authentication and profile views
 │   └── core/                    # Core application with base functionality
+|   ├── management/              # Custom management commands
+|           └── commands/
+│       ├── __init__.py
 │       ├── admin.py             # Admin site configurations
 │       ├── apps.py              # App config
+│       ├── graphql.py           # GraphQL utility
 │       ├── middleware.py        # Custom middleware
 │       ├── models.py            # Base models and managers
 │       ├── pagination.py        # Custom pagination classes
@@ -103,9 +117,13 @@ project-nexus/
 │   │   ├── __init__.py
 │   │   ├── base.py              # Base settings
 │   │   ├── development.py       # Development-specific settings
-│   │   └── production.py        # Production settings
+│   │   ├── production.py        # Production settings
+│   │   └── testing.py           # Testing settings
 │   ├── __init__.py
 │   ├── asgi.py
+│   ├── celery.py                # 
+│   ├── schema.py                # 
+│   ├── setting_old.py           # 
 │   ├── urls.py                  # Main URL configuration
 │   └── wsgi.py
 ├── logs/                        # Log files directory
@@ -117,7 +135,6 @@ project-nexus/
 ├── static/                      # Static files
 ├── tests/                       # Test files
 │   └── unit/                    # Unit tests
-│       └── core/                # Core app tests
 ├── .dockerignore
 ├── .env.example                 # Example environment variables
 ├── .gitignore
@@ -127,98 +144,91 @@ project-nexus/
 ├── manage.py                    # Django management script
 ├── pytest.ini                   # Pytest configuration
 ├── README.md                    # This file
+├── redis.conf                   # Redis configuration
 └── requirements.txt             # Development dependencies
-
-## Accounts API Endpoints
-
-This document provides a comprehensive overview of the API endpoints available for user account management. Read the full documentation in [API Docs](docs/api_docs.md).
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL 13+
-- Redis 6.0+
-- Docker and Docker Compose (optional)
-
-### Local Development Setup
-
-1. **Clone the repository**
-
-      ```bash
-      git clone https://github.com/yourusername/project-nexus.git
-      cd project-nexus
-      ```
-
-2. **Set up Python virtual environment**
-
-      ```bash
-      python -m venv venv
-      source venv/bin/activate  # On Windows: venv\Scripts\activate
-      ```
-
-3. **Install dependencies**
-
-      ```bash
-      pip install -r requirements/development.txt
-      ```
-
-4. **Set up environment variables**
-
-      ```bash
-      cp .env.example .env
-      # Edit .env with your configuration
-      ```
-
-5. **Set up the database**
-
-      ```bash
-      python manage.py migrate
-      python manage.py createsuperuser
-      ```
-
-6. **Run the development server**
-
-      ```bash
-      python manage.py runserver
-      ```
-
-### Running with Docker
-
-```bash
-docker-compose up -d --build
-```
 
 ## API Documentation
 
-### Interactive Documentation
+### REST API
 
-- **Swagger UI**: [/api/docs/](http://localhost:8000/api/docs/)
-- **ReDoc**: [/api/redoc/](http://localhost:8000/api/redoc/)
+- **Interactive Documentation**:
+  - [Swagger UI](/schema/swagger-ui/)
+  - [ReDoc](/schema/redoc/)
+
+### GraphQL API
+
+Access the GraphQL Playground at `/graphql/` for interactive queries and mutations.
+
+Key GraphQL Features:
+- Full CRUD operations for all resources
+- Real-time updates with subscriptions (coming soon)
+- Optimized queries with data loaders
+- Comprehensive error handling
+
+For detailed GraphQL documentation, see [GraphQL API Reference](./docs/api/graphql.md).
 
 ### Authentication
 
-All API endpoints (except public ones) require JWT authentication. Include the token in the Authorization header:
+Both REST and GraphQL APIs use JWT authentication. Include the token in the `Authorization` header:
 
-```json
-Authorization: Bearer your.jwt.token.here
+```http
+Authorization: Bearer your_access_token_here
 ```
 
 ### Available Endpoints
 
-#### Available Endpoints Authentication
+#### Authentication
 
-- `POST /api/v1/accounts/register/` - Register a new user
-- `POST /api/v1/accounts/login/` - Obtain JWT token
-- `POST /api/v1/accounts/token/refresh/` - Refresh JWT token
-- `POST /api/v1/accounts/password/reset/` - Request password reset
+- **REST**:
+  - `POST /api/v1/accounts/register/` - Register a new user
+  - `POST /api/v1/accounts/login/` - Login and get JWT tokens
+  - `POST /api/v1/accounts/refresh/` - Refresh access token
+  - `POST /api/v1/accounts/verify-email/` - Verify email address
+  - `POST /api/v1/accounts/password/reset/` - Request password reset
+  - `POST /api/v1/accounts/password/reset/confirm/` - Confirm password reset
+
+- **GraphQL**:
+
+  ```graphql
+  mutation {
+    registerUser(
+      username: "user"
+      email: "user@example.com"
+      password: "securepassword123"
+      passwordConfirm: "securepassword123"
+      acceptTerms: true
+    ) {
+      ok
+      user {
+        id
+        email
+        username
+      }
+    }
+  }
+  ```
 
 #### User Profile
 
-- `GET /api/v1/accounts/profile/` - Get current user profile
-- `PUT /api/v1/accounts/profile/` - Update profile
-- `PATCH /api/v1/accounts/profile/` - Partial update profile
+- **REST**:
+  - `GET /api/v1/accounts/me/` - Get current user profile
+  - `PATCH /api/v1/accounts/me/` - Update profile
+  - `POST /api/v1/accounts/change-password/` - Change password
+
+- **GraphQL**:
+
+  ```graphql
+  {
+    me {
+      id
+      username
+      email
+      firstName
+      lastName
+      emailVerified
+    }
+  }
+  ```
 
 ## Testing
 
@@ -250,4 +260,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-For support, please open an issue in the GitHub repository.
+For support, please open an issue in the GitHub repository or contact the maintainers.

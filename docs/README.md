@@ -4,10 +4,12 @@ This directory contains comprehensive documentation for the E-commerce API, desi
 
 ## Documentation Structure
 
-- `api/` - API reference documentation
-  - `users.md` - User management and authentication endpoints
-- `guides/` - How-to guides
-  - `authentication.md` - Authentication and user management guide
+- `docs/` - Root documentation directory
+  - `api/` - API reference documentation
+    - [users.md](./api/users.md) - User management and authentication endpoints
+    - [graphql.md](./api/graphql.md) - GraphQL API reference and usage examples
+  - `guides/` - How-to guides
+    - [authentication.md](./guides/authentication.md) - Authentication and user management guide
 
 ## Viewing the Documentation
 
@@ -25,16 +27,23 @@ To view the documentation locally:
     python manage.py runserver
     ```
 
-2. Visit <http://127.0.0.1:8000/schema/swagger-ui/> for Swagger UI
-3. Visit <http://127.0.0.1:8000/schema/redoc/> for ReDoc
+2. Access the documentation:
 
-## Current Features
+    - Swagger UI: <http://127.0.0.1:8000/schema/swagger-ui/>
+    - ReDoc: <http://127.0.0.1:8000/schema/redoc/>
 
-- User registration with email verification
-- JWT-based authentication
-- User profile management
-- Password reset functionality
-- Admin interface for user management
+3. GraphQL Playground
+Explore the GraphQL API at:
+
+    - <http://127.0.0.1:8000/graphql>
+
+## Documentation Features
+
+- **REST API Documentation**: Complete reference for all REST endpoints
+- **GraphQL Documentation**: Comprehensive guide for GraphQL operations
+- **Authentication Guide**: Step-by-step authentication flow
+- **Code Examples**: Ready-to-use examples for all major operations
+- **Error Handling**: Detailed error responses and troubleshooting
 
 ## Getting Started
 
