@@ -1,4 +1,9 @@
-# apps/core/graphql.py
+"""
+GraphQL utilities for the e-commerce backend.
+
+This module provides custom GraphQL view and helper functions for handling
+GraphQL requests with JWT authentication and request/response logging.
+"""
 
 import time
 
@@ -8,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from graphene_django.views import GraphQLView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+# Set of keys that contain sensitive information that should be masked in logs
 SENSITIVE_KEYS = {
     "password",
     "password1",
@@ -22,6 +28,17 @@ SENSITIVE_KEYS = {
 
 
 def _mask(value):
+    """
+    Mask sensitive information in logs.
+
+    Args:
+        value: The value to be masked. Can be any type that can be converted to string.
+
+    Returns:
+        str: Masked string with sensitive information obfuscated.
+            For strings longer than 8 characters, shows first 2 and last 2 characters.
+            For shorter strings or non-string values, returns '***'.
+    """
     try:
         s = str(value)
     except Exception:
@@ -30,6 +47,15 @@ def _mask(value):
 
 
 def _sanitize(obj):
+    """
+    Recursively sanitize a dictionary or list to mask sensitive information.
+
+    Args:
+        obj: The object to be sanitized. Can be a dictionary or a list.
+
+    Returns:
+        dict or list: Sanitized object with sensitive information masked.
+    """
     if isinstance(obj, dict):
         return {
             k: (_mask(v) if k in SENSITIVE_KEYS else _sanitize(v))
@@ -41,8 +67,27 @@ def _sanitize(obj):
 
 
 class AuthenticatedGraphQLView(GraphQLView):
+    """
+    Custom GraphQL view that handles JWT authentication and request/response logging.
+
+    This view authenticates incoming requests using JWT and logs request and response
+    information, including any errors that occur during execution.
+    """
+
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
+        """
+        Dispatch the request to the GraphQL view.
+
+        This method authenticates the incoming request using JWT and sets the
+        request user if authentication is successful.
+
+        Args:
+            request: The incoming request.
+
+        Returns:
+            Response: The response from the GraphQL view.
+        """
         try:
             user_auth = JWTAuthentication()
             result = user_auth.authenticate(request)
@@ -65,6 +110,23 @@ class AuthenticatedGraphQLView(GraphQLView):
         operation_name,
         show_graphiql=False,
     ):
+        """
+        Execute the GraphQL request.
+
+        This method logs request information, executes the GraphQL query, and logs
+        response information, including any errors that occur during execution.
+
+        Args:
+            request: The incoming request.
+            data: The GraphQL query data.
+            query: The GraphQL query string.
+            variables: The GraphQL query variables.
+            operation_name: The name of the GraphQL operation.
+            show_graphiql: Whether to show the GraphiQL interface.
+
+        Returns:
+            Response: The response from the GraphQL view.
+        """
         logger = structlog.get_logger("graphql")
         start = time.time()
 
@@ -79,7 +141,7 @@ class AuthenticatedGraphQLView(GraphQLView):
             0
         ] or request.META.get("REMOTE_ADDR")
         req_id = request.META.get("HTTP_X_REQUEST_ID") or request.META.get(
-            "X_REQUEST_ID",
+            "X_REQUEST_ID"
         )
 
         safe_vars = _sanitize(variables or {})
