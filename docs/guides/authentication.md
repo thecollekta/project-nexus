@@ -86,7 +86,7 @@ Content-Type: application/json
 After verifying your email, you can obtain an access token by logging in:
 
 ```http
-POST /api/v1/accounts/login/
+POST `/api/v1/accounts/login/`
 Content-Type: application/json
 
 ### Login Request

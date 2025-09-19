@@ -131,7 +131,7 @@ mutation {
 Retrieve the profile of the currently authenticated user.
 
 ```graphql
-{
+query {
   me {
     id
     username
