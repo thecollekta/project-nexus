@@ -32,8 +32,12 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
     - [API Features](#api-features)
     - [Development Tools](#development-tools)
   - [Project Structure](#project-structure)
+  - [API Documentation](#api-documentation)
+    - [REST API](#rest-api)
+    - [GraphQL API](#graphql-api)
+    - [Authentication](#authentication)
     - [Available Endpoints](#available-endpoints)
-      - [Authentication](#authentication)
+      - [Authentication](#authentication-1)
       - [User Profile](#user-profile)
   - [Testing](#testing)
   - [Development Workflow](#development-workflow)
@@ -146,6 +150,7 @@ project-nexus/
 ├── README.md                    # This file
 ├── redis.conf                   # Redis configuration
 └── requirements.txt             # Development dependencies
+```
 
 ## API Documentation
 
@@ -160,6 +165,7 @@ project-nexus/
 Access the GraphQL Playground at `/graphql/` for interactive queries and mutations.
 
 Key GraphQL Features:
+
 - Full CRUD operations for all resources
 - Real-time updates with subscriptions (coming soon)
 - Optimized queries with data loaders
