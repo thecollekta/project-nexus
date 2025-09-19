@@ -157,8 +157,8 @@ project-nexus/
 ### REST API
 
 - **Interactive Documentation**:
-  - [Swagger UI](/schema/swagger-ui/)
-  - [ReDoc](/schema/redoc/)
+  - `/schema/swagger-ui/`
+  - `/schema/redoc/`
 
 ### GraphQL API
 
