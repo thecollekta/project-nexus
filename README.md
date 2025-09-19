@@ -65,7 +65,7 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
   - **GraphQL API** for flexible data querying
 - **Authentication**:
   - JWT Authentication with refresh tokens
-  - Social authentication (OAuth2)
+  - Social authentication (OAuth2) (coming soon)
   - Email verification
   - Password reset flow
 - **Advanced Features**:
@@ -182,31 +182,23 @@ Authorization: Bearer your_access_token_here
 - **REST**:
   - `POST /api/v1/accounts/register/` - Register a new user
   - `POST /api/v1/accounts/login/` - Login and get JWT tokens
-  - `POST /api/v1/accounts/refresh/` - Refresh access token
-  - `POST /api/v1/accounts/verify-email/` - Verify email address
-  - `POST /api/v1/accounts/password/reset/` - Request password reset
-  - `POST /api/v1/accounts/password/reset/confirm/` - Confirm password reset
+  - `POST /api/v1/accounts/logout/` - Invalidate user's refresh token
+  - `POST /api/v1/accounts/token/refresh/` - Refresh access token
+  - `GET /api/v1/accounts/me/` - Get current user's profile
+  - `PUT /api/v1/accounts/me/` - Update current user's profile
+  - `PATCH /api/v1/accounts/me/` - Partially update current user's profile
+  - `POST /api/v1/accounts/me/change-password/` - Change current user's password
+  - `POST /api/v1/accounts/verify-email/` - Request email verification
+  - `POST /api/v1/accounts/verify-email/confirm/` - Confirm email verification
+  - `POST /api/v1/accounts/reset-password/confirm/` - Confirm password reset
 
-- **GraphQL**:
-
-  ```graphql
-  mutation {
-    registerUser(
-      username: "user"
-      email: "user@example.com"
-      password: "securepassword123"
-      passwordConfirm: "securepassword123"
-      acceptTerms: true
-    ) {
-      ok
-      user {
-        id
-        email
-        username
-      }
-    }
-  }
-  ```
+  **Admin Endpoints**:
+  - `GET /api/v1/accounts/profiles/` - List all user profiles
+  - `GET /api/v1/accounts/profiles/<id>/` - Get specific user profile
+  - `PUT /api/v1/accounts/profiles/<id>/` - Update user profile
+  - `PATCH /api/v1/accounts/profiles/<id>/` - Partially update user profile
+  - `DELETE /api/v1/accounts/profiles/<id>/` - Delete user profile
+  - `GET /api/v1/accounts/users/` - Alternative endpoint for user management (same as profiles)
 
 #### User Profile
 
@@ -216,19 +208,51 @@ Authorization: Bearer your_access_token_here
   - `POST /api/v1/accounts/change-password/` - Change password
 
 - **GraphQL**:
+  - **Authentication**
 
-  ```graphql
-  {
-    me {
-      id
-      username
-      email
-      firstName
-      lastName
-      emailVerified
+    ```graphql
+    # Register a new user
+    mutation {
+      registerUser(
+      username: "kwame"
+      email: "<kwame.nkrumah@ghana.com>"
+      password: "Blackstar233."
+      passwordConfirm: "Blackstar233."
+      acceptTerms: true
+    ) {
+      ok
+      errors
+      user {
+        id
+        email
+        username
+      }
     }
-  }
-  ```
+
+    # Login
+
+    mutation {
+      login(email: "kwame.nkrumah@ghana.com", password: "Blackstar233.") {
+        ok
+        access
+        refresh
+        errors
+      }
+    }
+
+    # Refresh token
+
+    mutation {
+      refreshToken(refreshToken: "your-refresh-token") {
+        token
+        refreshToken
+        payload
+      }
+    }
+
+    ```
+
+For a complete list of available GraphQL queries and mutations, visit the GraphQL Playground at `/graphql/`. Read the full documentation in [GraphQL API Reference](./docs/api/graphql.md).
 
 ## Testing
 
