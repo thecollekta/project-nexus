@@ -121,22 +121,22 @@ INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore #
 
 
 # Admin URL
-ADMIN_URL = env("DJANGO_ADMIN_URL")  # noqa: F405
+ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")  # type: ignore # noqa: F405
 
 # Sentry configuration (if using)
-if "SENTRY_DSN" in env:  # noqa: F405
-    import sentry_sdk  # type: ignore
-    from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
+# if "SENTRY_DSN" in env:  # noqa: F405
+#     import sentry_sdk  # type: ignore
+#     from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
 
-    sentry_sdk.init(
-        dsn=env("SENTRY_DSN"),  # noqa: F405
-        integrations=[DjangoIntegration()],
-        send_default_pii=True,
-        environment=env(  # noqa: F405 # type: ignore
-            "ENVIRONMENT",
-            default="production",  # type: ignore
-        ),
-    )
+#     sentry_sdk.init(
+#         dsn=env("SENTRY_DSN"),  # noqa: F405
+#         integrations=[DjangoIntegration()],
+#         send_default_pii=True,
+#         environment=env(  # noqa: F405 # type: ignore
+#             "ENVIRONMENT",
+#             default="production",  # type: ignore
+#         ),
+#     )
 
 # Performance optimizations
 TEMPLATES[0]["OPTIONS"]["debug"] = False  # noqa: F405
