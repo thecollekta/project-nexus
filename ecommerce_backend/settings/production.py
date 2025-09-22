@@ -131,12 +131,3 @@ ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")  # type: ignore # noqa: F4
 
 # Performance optimizations
 TEMPLATES[0]["OPTIONS"]["debug"] = False  # noqa: F405
-TEMPLATES[0]["OPTIONS"]["loaders"] = [  # noqa: F405
-    (
-        "django.template.loaders.cached.Loader",
-        [
-            "django.template.loaders.filesystem.Loader",
-            "django.template.loaders.app_directories.Loader",
-        ],
-    )
-]
