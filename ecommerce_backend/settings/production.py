@@ -22,6 +22,14 @@ SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
+# Session settings for production
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+CSRF_USE_SESSIONS = False  # Use cookie-based CSRF in production
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 1209600  # 2 weeks
+
 
 # Caching
 CACHES = {

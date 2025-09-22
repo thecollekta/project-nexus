@@ -245,14 +245,18 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Session settings
-SESSION_ENGINE = env.str("SESSION_ENGINE")
+SESSION_ENGINE = env.str(
+    "SESSION_ENGINE", default="django.contrib.sessions.backends.cache"
+)
 SESSION_CACHE_ALIAS = "sessions"
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE")
-CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE")
-CSRF_USE_SESSIONS = env.bool("CSRF_USE_SESSIONS")
-SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool("SESSION_EXPIRE_AT_BROWSER_CLOSE")
-SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE")
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+CSRF_USE_SESSIONS = env.bool("CSRF_USE_SESSIONS", default=False)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool(
+    "SESSION_EXPIRE_AT_BROWSER_CLOSE", default=False
+)
+SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=1209600)  # 2 weeks default
 
 # CSRF settings
 CSRF_COOKIE_HTTPONLY = True  # Recommended for security
