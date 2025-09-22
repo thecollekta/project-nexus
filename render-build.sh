@@ -7,6 +7,10 @@ set -o nounset  # Exit on undefined variables
 
 echo "Starting Render.com Build Process"
 
+# Create necessary directories
+echo "--- Creating required directories ---"
+mkdir -p logs staticfiles media
+
 # Set production settings for all management commands
 export DJANGO_SETTINGS_MODULE=ecommerce_backend.settings.production
 
