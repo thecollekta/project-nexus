@@ -72,7 +72,10 @@ DEBUG = env("DEBUG")
 # Determine allowed hosts based on environment
 if os.environ.get("RENDER"):
     # Production on Render
-    ALLOWED_HOSTS = ["project-nexus-backend-q5ai.onrender.com"]
+    ALLOWED_HOSTS = [
+        "project-nexus-backend-q5ai.onrender.com",
+        ".onrender.com",
+    ]
 else:
     # Local development
     ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")

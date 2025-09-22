@@ -62,9 +62,10 @@ CACHES = {
             "SOCKET_CONNECT_TIMEOUT": 5,  # seconds
             "SOCKET_TIMEOUT": 5,  # seconds
             "IGNORE_EXCEPTIONS": True,  # don't crash on Redis errors
-            "PASSWORD": env(# noqa: F405 # type: ignore
-                "REDIS_PASSWORD", default=None
-            ),  # noqa: F405 # type: ignore
+            "PASSWORD": env(  # noqa: F405 # type: ignore
+                "REDIS_PASSWORD",
+                default=None,  # type: ignore
+            ),
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
         "KEY_PREFIX": "ecommerce",
@@ -142,7 +143,6 @@ if ENABLE_METRICS:
     )
 
 # Custom settings
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["example.com"])  # type: ignore # noqa: F405
 INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
 
 # Security headers for modern browsers
@@ -180,7 +180,7 @@ if "SENTRY_DSN" in env:  # noqa: F405
         dsn=env("SENTRY_DSN"),  # noqa: F405
         integrations=[DjangoIntegration()],
         send_default_pii=True,
-        environment=env(# noqa: F405 # type: ignore
+        environment=env(  # noqa: F405 # type: ignore
             "ENVIRONMENT", default="production"
         ),  # noqa: F405 # type: ignore
     )
