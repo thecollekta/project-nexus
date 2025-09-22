@@ -15,7 +15,10 @@ env = environ.Env(
     # Set casting and default values
     SECRET_KEY=(str, "SECRET_KEY"),
     DEBUG=(bool, "DEBUG"),
-    DJANGO_ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
+    DJANGO_ALLOWED_HOSTS=(
+        list,
+        ["localhost", "127.0.0.1", "project-nexus-backend-q5ai.onrender.com"],
+    ),
     DATABASE_URL=(str, "DATABASE_URL"),
     DB_ENGINE=(str, "DB_ENGINE"),
     DB_NAME=(str, "DB_NAME"),
