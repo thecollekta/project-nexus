@@ -1,6 +1,11 @@
 # ecommerce_backend/settings/production.py
 
+from pathlib import Path
+
 from .base import *  # noqa: F403
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Core settings
 DEBUG = False
@@ -29,28 +34,7 @@ CSRF_COOKIE_HTTPONLY = True
 CSRF_USE_SESSIONS = True
 
 # Security middleware settings
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
 
-# Database
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME"),  # noqa: F405
-        "USER": env("DB_USER"),  # noqa: F405
-        "PASSWORD": env("DB_PASSWORD"),  # noqa: F405
-        "HOST": env("DB_HOST"),  # noqa: F405
-        "PORT": env("DB_PORT"),  # noqa: F405
-        "CONN_MAX_AGE": 600,  # 10 minutes connection persistence
-        "OPTIONS": {
-            "connect_timeout": 5,
-            "keepalives": 1,
-            "keepalives_idle": 30,
-            "keepalives_interval": 10,
-            "keepalives_count": 5,
-        },
-    }
-}
 
 # Caching
 CACHES = {
@@ -110,27 +94,17 @@ LOGGING = {
     },
 }
 
-# Email settings
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = env("EMAIL_HOST")  # noqa: F405
-EMAIL_PORT = env("EMAIL_PORT", default=587)  # type: ignore # noqa: F405
-EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True)  # type: ignore # noqa: F405
-EMAIL_HOST_USER = env("EMAIL_HOST_USER")  # noqa: F405
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")  # noqa: F405
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)  # type: ignore # noqa: F405
-SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)  # type: ignore # noqa: F405
 
 # Performance
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 
 # Static and media files
-STATIC_ROOT = "/var/www/static"
-MEDIA_ROOT = "/var/www/media"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# Security headers
-SECURE_REFERRER_POLICY = "same-origin"
-SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
+# WhiteNoise configuration
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MANIFEST_STRICT = False
+WHITENOISE_ALLOW_ALL_ORIGINS = True
 
 # Monitoring
 ENABLE_METRICS = env.bool("ENABLE_METRICS", default=False)  # type: ignore # noqa: F405
@@ -145,27 +119,6 @@ if ENABLE_METRICS:
 # Custom settings
 INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
 
-# Security headers for modern browsers
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
-
-# Security middleware
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.gzip.GZipMiddleware",
-]
-
-# Gunicorn settings
-WSGI_APPLICATION = "ecommerce_backend.wsgi.application"
 
 # Admin URL
 ADMIN_URL = env("DJANGO_ADMIN_URL")  # noqa: F405
@@ -173,16 +126,16 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")  # noqa: F405
 # Sentry configuration (if using)
 if "SENTRY_DSN" in env:  # noqa: F405
     import sentry_sdk  # type: ignore
-    from sentry_sdk.integrations.django import \
-        DjangoIntegration  # type: ignore
+    from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
 
     sentry_sdk.init(
         dsn=env("SENTRY_DSN"),  # noqa: F405
         integrations=[DjangoIntegration()],
         send_default_pii=True,
         environment=env(  # noqa: F405 # type: ignore
-            "ENVIRONMENT", default="production"
-        ),  # noqa: F405 # type: ignore
+            "ENVIRONMENT",
+            default="production",  # type: ignore
+        ),
     )
 
 # Performance optimizations
