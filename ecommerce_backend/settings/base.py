@@ -40,6 +40,7 @@ env = environ.Env(
     SESSION_ENGINE=(str, "django.contrib.sessions.backends.cache"),
     SESSION_COOKIE_SECURE=(bool, False),
     CSRF_COOKIE_SECURE=(bool, False),
+    CSRF_USE_SESSIONS=(bool, False),
     SESSION_EXPIRE_AT_BROWSER_CLOSE=(bool, False),
     SESSION_COOKIE_AGE=(int, "SESSION_COOKIE_AGE"),
     REDIS_URL=(str, "REDIS_URL"),
@@ -249,8 +250,16 @@ SESSION_CACHE_ALIAS = "sessions"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE")
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE")
+CSRF_USE_SESSIONS = env.bool("CSRF_USE_SESSIONS")
 SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool("SESSION_EXPIRE_AT_BROWSER_CLOSE")
 SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE")
+
+# CSRF settings
+CSRF_COOKIE_HTTPONLY = True  # Recommended for security
+CSRF_COOKIE_SAMESITE = "Lax"  # or "Strict" for better security
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_HEADER_NAME = "HTTP_X_CSRFTOKEN"
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # Cache settings
 CACHES = {

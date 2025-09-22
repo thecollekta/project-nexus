@@ -12,8 +12,6 @@ DEBUG = False
 
 # Security settings
 SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_HSTS_SECONDS = 31536000  # 1 year
@@ -23,17 +21,6 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
-
-# Session settings
-SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
-SESSION_COOKIE_HTTPONLY = True
-SESSION_SAVE_EVERY_REQUEST = True
-
-# CSRF settings
-CSRF_COOKIE_HTTPONLY = True
-CSRF_USE_SESSIONS = True
-
-# Security middleware settings
 
 
 # Caching
@@ -101,11 +88,11 @@ WHITENOISE_ALLOW_ALL_ORIGINS = True
 ENABLE_METRICS = env.bool("ENABLE_METRICS", default=False)  # type: ignore # noqa: F405
 if ENABLE_METRICS:
     INSTALLED_APPS += ["django_prometheus"]  # noqa: F405
-    MIDDLEWARE = (
-        ["django_prometheus.middleware.PrometheusBeforeMiddleware"]
-        + MIDDLEWARE  # noqa: F405
-        + ["django_prometheus.middleware.PrometheusAfterMiddleware"]
-    )
+    # MIDDLEWARE = (
+    #     ["django_prometheus.middleware.PrometheusBeforeMiddleware"]
+    #     + MIDDLEWARE  # noqa: F405
+    #     + ["django_prometheus.middleware.PrometheusAfterMiddleware"]
+    # )
 
 # Custom settings
 INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
