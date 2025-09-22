@@ -1,6 +1,7 @@
 # ecommerce_backend/settings/base.py
 
 
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -62,8 +63,14 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
-
+# ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+# Determine allowed hosts based on environment
+if os.environ.get("RENDER"):
+    # Production on Render
+    ALLOWED_HOSTS = ["https://project-nexus-backend-q5ai.onrender.com"]
+else:
+    # Local development
+    ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 # Application definition
 
@@ -126,9 +133,53 @@ WSGI_APPLICATION = "ecommerce_backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": env.db(),
-}
+# DATABASES = {
+#     "default": env.db(),
+# }
+
+
+# Helper function for database detection
+def get_database_config():
+    """Configure database based on environment with proper fallbacks"""
+    database_url = os.environ.get("DATABASE_URL")
+
+    if database_url:
+        # Production/Render environment - use DATABASE_URL
+        config = dj_database_url.parse(database_url, conn_max_age=600)
+        # Add SSL requirement for production PostgreSQL
+        config["OPTIONS"] = config.get("OPTIONS", {})
+        config["OPTIONS"]["sslmode"] = "require"
+        return {"default": config}
+
+    # Local development
+    db_engine = env("DB_ENGINE")
+
+    if db_engine == "sqlite3":
+        return {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+            }
+        }
+    else:
+        # Local PostgreSQL
+        return {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": env("DB_NAME"),
+                "USER": env("DB_USER"),
+                "PASSWORD": env("DB_PASSWORD"),
+                "HOST": env("DB_HOST"),
+                "PORT": env("DB_PORT"),
+                "OPTIONS": {
+                    "connect_timeout": 60,
+                },
+            }
+        }
+
+
+# Database Configuration
+DATABASES = get_database_config()
 
 # Authentication backends
 AUTHENTICATION_BACKENDS = [

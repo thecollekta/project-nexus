@@ -26,12 +26,16 @@ coverage==7.10.6
 cron_descriptor==2.0.6
 cryptography==45.0.7
 distlib==0.4.0
+dj-database-url==3.0.1
 Django==5.2.6
 django-celery-beat==2.8.1
 django-cors-headers==4.7.0
+django-csp==4.0
 django-environ==0.12.0
 django-filter==25.1
+django-ratelimit==4.1.0
 django-redis==6.0.0
+django-silk==5.4.3
 django-storages==1.14.6
 django-stubs==5.2.5
 django-stubs-ext==5.2.5
@@ -45,11 +49,14 @@ drf-spectacular-sidecar==2025.9.1
 factory_boy==3.3.3
 Faker==37.6.0
 filelock==3.19.1
+gprof2dot==2025.4.14
 graphene==3.4.3
 graphene-django==3.2.3
 graphql-core==3.2.6
 graphql-relay==3.2.0
+gunicorn==23.0.0
 h11==0.16.0
+hiredis==3.2.1
 httpcore==1.0.9
 httpx==0.28.1
 identify==2.6.13
@@ -93,6 +100,7 @@ pytest-cov==6.2.1
 pytest-django==4.11.1
 python-crontab==3.3.0
 python-dateutil==2.9.0.post0
+python-json-logger==3.3.0
 python-slugify==8.0.4
 PyYAML==6.0.2
 redis==6.4.0
@@ -106,6 +114,7 @@ ruamel.yaml.clib==0.2.12
 ruff==0.13.1
 safety==3.6.1
 safety-schemas==0.0.14
+sentry-sdk==2.38.0
 setuptools==80.9.0
 shellingham==1.5.4
 six==1.17.0
@@ -128,3 +137,4 @@ userpath==1.9.2
 vine==5.1.0
 virtualenv==20.34.0
 wcwidth==0.2.13
+whitenoise==6.11.0
