@@ -5,7 +5,7 @@ Django admin configuration for user management.
 Provides a comprehensive interface for managing users and their profiles.
 """
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 from django.utils.html import format_html

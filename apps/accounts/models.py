@@ -272,8 +272,8 @@ class UserProfile(AuditStampedModelBase):
     website = models.URLField(blank=True, help_text=_("Personal website"))
 
     class Meta:
-        verbose_name = "User Profile"
-        verbose_name_plural = "User Profiles"
+        verbose_name = _("User Profile")
+        verbose_name_plural = _("User Profiles")
 
     def __str__(self):
         return f"{self.user.username}'s Profile"

@@ -62,7 +62,9 @@ CACHES = {
             "SOCKET_CONNECT_TIMEOUT": 5,  # seconds
             "SOCKET_TIMEOUT": 5,  # seconds
             "IGNORE_EXCEPTIONS": True,  # don't crash on Redis errors
-            "PASSWORD": env("REDIS_PASSWORD", default=None),  # noqa: F405 # type: ignore
+            "PASSWORD": env(# noqa: F405 # type: ignore
+                "REDIS_PASSWORD", default=None
+            ),  # noqa: F405 # type: ignore
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
         "KEY_PREFIX": "ecommerce",
@@ -171,13 +173,16 @@ ADMIN_URL = env("DJANGO_ADMIN_URL")  # noqa: F405
 # Sentry configuration (if using)
 if "SENTRY_DSN" in env:  # noqa: F405
     import sentry_sdk  # type: ignore
-    from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
+    from sentry_sdk.integrations.django import \
+        DjangoIntegration  # type: ignore
 
     sentry_sdk.init(
         dsn=env("SENTRY_DSN"),  # noqa: F405
         integrations=[DjangoIntegration()],
         send_default_pii=True,
-        environment=env("ENVIRONMENT", default="production"),  # noqa: F405 # type: ignore
+        environment=env(# noqa: F405 # type: ignore
+            "ENVIRONMENT", default="production"
+        ),  # noqa: F405 # type: ignore
     )
 
 # Performance optimizations

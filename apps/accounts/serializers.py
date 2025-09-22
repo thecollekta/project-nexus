@@ -535,8 +535,10 @@ class EmailVerificationSerializer(serializers.Serializer):
             ):
                 user.account_status = "active"
             user.save(
-                update_fields=["email_verified", "updated_at", "account_status"]
-                if hasattr(user, "account_status")
-                else ["email_verified", "updated_at"],
+                update_fields=(
+                    ["email_verified", "updated_at", "account_status"]
+                    if hasattr(user, "account_status")
+                    else ["email_verified", "updated_at"]
+                ),
             )
         return user
