@@ -13,12 +13,10 @@ from typing import Any, ClassVar
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from apps.core.serializers import (
-    BaseModelSerializer,
-    SanitizedCharField,
-    SanitizedTextField,
-)
-from apps.products.models import Category, Product, ProductImage, ProductSpecification
+from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
+                                   SanitizedTextField)
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductSpecification)
 
 
 class CategoryListSerializer(BaseModelSerializer):

@@ -515,18 +515,26 @@ class ProductFilter(django_filters.FilterSet):
         # This is a simplified approach - for exact calculation, use raw SQL
         if min_discount is not None:
             filtered_queryset = filtered_queryset.annotate(
-                max_price_for_min_discount=models.F("compare_at_price")  # noqa: F821 # type: ignore
+                max_price_for_min_discount=models.F(  # noqa: F821 # type: ignore
+                    "compare_at_price"
+                )
                 * (100 - min_discount)
                 / 100,
-            ).filter(price__lte=models.F("max_price_for_min_discount"))  # type: ignore # noqa: F821
+            ).filter(
+                price__lte=models.F("max_price_for_min_discount")  # type: ignore # noqa: F821
+            )
 
         if max_discount is not None:
             # Products with at most max_discount percentage
             filtered_queryset = filtered_queryset.annotate(
-                min_price_for_max_discount=models.F("compare_at_price")  # noqa: F821 # type: ignore
+                min_price_for_max_discount=models.F(  # type: ignore  # noqa: F821
+                    "compare_at_price"
+                )  # noqa: F821 # type: ignore
                 * (100 - max_discount)
                 / 100,
-            ).filter(price__gte=models.F("min_price_for_max_discount"))  # type: ignore # noqa: F821
+            ).filter(
+                price__gte=models.F("min_price_for_max_discount")  # type: ignore  # noqa: F821
+            )  # type: ignore # noqa: F821
 
         return filtered_queryset
 

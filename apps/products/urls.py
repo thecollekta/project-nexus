@@ -10,14 +10,9 @@ with both authenticated and public access patterns.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.products.views import (
-    CategoryViewSet,
-    ProductImageViewSet,
-    ProductSpecificationViewSet,
-    ProductViewSet,
-    PublicCategoryViewSet,
-    PublicProductViewSet,
-)
+from apps.products.views import (CategoryViewSet, ProductImageViewSet,
+                                 ProductSpecificationViewSet, ProductViewSet,
+                                 PublicCategoryViewSet, PublicProductViewSet)
 
 # Main router for authenticated API endpoints
 router = DefaultRouter()

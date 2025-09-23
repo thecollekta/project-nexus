@@ -119,10 +119,8 @@ class ProductsConfig(AppConfig):
         """Check if database needs population (safe to call after migrations)."""
         try:
             # Import here to avoid circular imports during app loading
-            from apps.products.models import (
-                Category,  # noqa: PLC0415
-                Product,  # noqa: PLC0415
-            )
+            from apps.products.models import Category  # noqa: PLC0415
+            from apps.products.models import Product  # noqa: PLC0415
 
             # Check if we should force recreation
             force_recreation = getattr(settings, "FORCE_SAMPLE_DATA_RECREATION", False)

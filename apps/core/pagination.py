@@ -7,7 +7,8 @@ Provides flexible pagination options for different use cases.
 
 from collections import OrderedDict
 
-from rest_framework.pagination import LimitOffsetPagination, PageNumberPagination
+from rest_framework.pagination import (LimitOffsetPagination,
+                                       PageNumberPagination)
 from rest_framework.response import Response
 
 

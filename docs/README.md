@@ -25,19 +25,17 @@ To view the documentation locally:
 
 1. Start the development server:
 
-    ```bash
-    python manage.py runserver
-    ```
-
+   ```bash
+   python manage.py runserver
+   ```
 2. Access the documentation:
 
-    - Swagger UI: <http://127.0.0.1:8000/schema/swagger-ui/>
-    - ReDoc: <http://127.0.0.1:8000/schema/redoc/>
-
+   - Swagger UI: [http://127.0.0.1:8000/schema/swagger-ui/](http://127.0.0.1:8000/schema/swagger-ui/)
+   - ReDoc: [http://127.0.0.1:8000/schema/redoc/](http://127.0.0.1:8000/schema/redoc/)
 3. GraphQL Playground
-Explore the GraphQL API at:
+   Explore the GraphQL API at:
 
-    - <http://127.0.0.1:8000/graphql>
+   - [http://127.0.0.1:8000/graphql/](http://127.0.0.1:8000/graphql)
 
 ## Documentation Features
 
@@ -63,7 +61,7 @@ To contribute to the project:
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests and linters: `./scripts/test.sh`
+4. Run tests and linters: `./scripts/test.sh` (Coming soon)
 5. Submit a pull request
 
 ## License

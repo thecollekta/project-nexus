@@ -5,7 +5,8 @@ from django.db.models import Q
 from graphene_django import DjangoObjectType
 from graphql import GraphQLError
 
-from apps.products.models import Category, Product, ProductImage, ProductSpecification
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductSpecification)
 
 
 class CategoryType(DjangoObjectType):

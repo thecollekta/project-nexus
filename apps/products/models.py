@@ -16,7 +16,8 @@ from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-from apps.core.models import ActiveManager, AllObjectsManager, AuditStampedModelBase
+from apps.core.models import (ActiveManager, AllObjectsManager,
+                              AuditStampedModelBase)
 
 
 class CategoryManager(ActiveManager):
@@ -624,7 +625,9 @@ class ProductImage(AuditStampedModelBase):
             ProductImage.objects.filter(
                 product=self.product,
                 is_primary=True,
-            ).exclude(id=self.id).update(is_primary=False)
+            ).exclude(
+                id=self.id
+            ).update(is_primary=False)
 
         # Auto-generate alt text if not provided
         if not self.alt_text:

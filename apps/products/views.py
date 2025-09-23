@@ -12,37 +12,34 @@ from decimal import Decimal
 from typing import ClassVar
 
 import structlog
-from apps.products.filters import CategoryFilter, ProductFilter
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import (
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-    extend_schema_view,
-)
+from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
+                                   extend_schema, extend_schema_view)
 from rest_framework import filters, permissions, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
-from apps.core.pagination import LargeResultsSetPagination, StandardResultsSetPagination
+from apps.core.pagination import (LargeResultsSetPagination,
+                                  StandardResultsSetPagination)
 from apps.core.views import BaseReadOnlyViewSet, BaseViewSet
-from apps.products.models import Category, Product, ProductImage, ProductSpecification
-from apps.products.serializers import (
-    CategoryDetailSerializer,
-    CategoryListSerializer,
-    CategorySerializerSelector,
-    ProductDetailSerializer,
-    ProductImageSerializer,
-    ProductInventorySerializer,
-    ProductListSerializer,
-    ProductPricingSerializer,
-    ProductSerializerSelector,
-    ProductSpecificationSerializer,
-)
+from apps.products.filters import CategoryFilter, ProductFilter
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductSpecification)
+from apps.products.serializers import (CategoryDetailSerializer,
+                                       CategoryListSerializer,
+                                       CategorySerializerSelector,
+                                       ProductDetailSerializer,
+                                       ProductImageSerializer,
+                                       ProductInventorySerializer,
+                                       ProductListSerializer,
+                                       ProductPricingSerializer,
+                                       ProductSerializerSelector,
+                                       ProductSpecificationSerializer)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
