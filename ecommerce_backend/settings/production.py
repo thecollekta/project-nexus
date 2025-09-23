@@ -22,34 +22,45 @@ SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
-# Session settings for production
-SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-CSRF_USE_SESSIONS = False  # Use cookie-based CSRF in production
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_COOKIE_AGE = 1209600  # 2 weeks
+# Cache configuration for production
+redis_url = env("REDIS_URL")  # noqa: F405
 
-
-# Caching
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL"),  # noqa: F405
+        "LOCATION": redis_url,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,  # seconds
-            "SOCKET_TIMEOUT": 5,  # seconds
-            "IGNORE_EXCEPTIONS": True,  # don't crash on Redis errors
-            "PASSWORD": env(  # noqa: F405 # type: ignore
-                "REDIS_PASSWORD",
-                default=None,  # type: ignore
-            ),
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+            "IGNORE_EXCEPTIONS": True,
+            "PASSWORD": env("REDIS_PASSWORD", default=None),  # noqa: F405 # type: ignore
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
         "KEY_PREFIX": "ecommerce",
-    }
+    },
+    "sessions": {  # Add this missing sessions cache
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": redis_url,  # Use same Redis instance, different logical database
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+            "IGNORE_EXCEPTIONS": True,
+            "PASSWORD": env("REDIS_PASSWORD", default=None),  # noqa: F405 # type: ignore
+        },
+        "KEY_PREFIX": "ecommerce_sessions",
+    },
 }
+
+# Session settings for production
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+SESSION_CACHE_ALIAS = "sessions"  # Point to the sessions cache
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+CSRF_USE_SESSIONS = False
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 1209600  # 2 weeks
 
 # Logging configuration
 LOGGING = {

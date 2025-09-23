@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ecommerce-backend
+    env: python
+    plan: free
+    buildCommand: "chmod +x render-build.sh && ./render-build.sh"
+    startCommand: "gunicorn ecommerce_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: ecommerce_backend.settings.production
+      - key: SUPERUSER_USERNAME
+        value: admin
+      - key: SUPERUSER_EMAIL
+        value: admin@ecommerce.com
+      - key: SUPERUSER_PASSWORD
+        generateValue: true
