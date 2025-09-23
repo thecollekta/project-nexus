@@ -8,9 +8,13 @@ Defines API endpoints for user authentication and profile management.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.accounts.views import (CustomTokenRefreshView, UserLoginView,
-                                 UserLogoutView, UserProfileViewSet,
-                                 UserRegistrationView)
+from apps.accounts.views import (
+    CustomTokenRefreshView,
+    UserLoginView,
+    UserLogoutView,
+    UserProfileViewSet,
+    UserRegistrationView,
+)
 
 # Create router for ViewSets
 router = DefaultRouter()

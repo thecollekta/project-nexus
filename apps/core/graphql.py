@@ -141,7 +141,7 @@ class AuthenticatedGraphQLView(GraphQLView):
             0
         ] or request.META.get("REMOTE_ADDR")
         req_id = request.META.get("HTTP_X_REQUEST_ID") or request.META.get(
-            "X_REQUEST_ID"
+            "X_REQUEST_ID",
         )
 
         safe_vars = _sanitize(variables or {})
