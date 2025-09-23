@@ -27,6 +27,10 @@ echo "--- Applying database migrations ---"
 python manage.py makemigrations --noinput || echo "No new migrations detected"
 python manage.py migrate --noinput
 
+# Load sample product data
+echo "--- Loading sample product data ---"
+python manage.py products_sample_data --user=admin --count=20 --with-images --with-specs --scenario=basic
+
 # Collect static files
 echo "--- Collecting static files ---"
 python manage.py collectstatic --noinput --clear
