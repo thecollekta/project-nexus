@@ -13,14 +13,18 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from graphene_django import DjangoObjectType
 
-from apps.accounts.serializers import (EmailVerificationSerializer,
-                                       PasswordChangeSerializer,
-                                       PasswordResetConfirmSerializer,
-                                       PasswordResetSerializer,
-                                       UserLoginSerializer,
-                                       UserProfileSerializer,
-                                       UserRegistrationSerializer)
+from apps.accounts.serializers import (
+    EmailVerificationSerializer,
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetSerializer,
+    UserLoginSerializer,
+    UserProfileSerializer,
+    UserRegistrationSerializer,
+)
 from apps.accounts.tasks import send_verification_email
+from apps.products.schema import Mutation as ProductsMutation
+from apps.products.schema import Query as ProductsQuery
 
 User = get_user_model()
 
@@ -49,7 +53,7 @@ class UserType(DjangoObjectType):
         )
 
 
-class Query(graphene.ObjectType):
+class Query(ProductsQuery, graphene.ObjectType):
     me = graphene.Field(UserType, description="Current authenticated user profile")
     users = graphene.List(
         UserType,
@@ -419,7 +423,7 @@ class ResetPasswordConfirm(graphene.Mutation):
         )
 
 
-class Mutation(graphene.ObjectType):
+class Mutation(ProductsMutation, graphene.ObjectType):
     register_user = RegisterUser.Field()
     login = Login.Field()
     update_profile = UpdateProfile.Field()

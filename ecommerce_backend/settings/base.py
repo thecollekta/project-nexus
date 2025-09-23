@@ -40,10 +40,15 @@ env = environ.Env(
     SESSION_ENGINE=(str, "django.contrib.sessions.backends.cache"),
     SESSION_COOKIE_SECURE=(bool, False),
     CSRF_COOKIE_SECURE=(bool, False),
-    CSRF_USE_SESSIONS=(bool, False),
     SESSION_EXPIRE_AT_BROWSER_CLOSE=(bool, False),
     SESSION_COOKIE_AGE=(int, "SESSION_COOKIE_AGE"),
     REDIS_URL=(str, "REDIS_URL"),
+    # Sample Data Configuration
+    CREATE_SAMPLE_DATA=(bool, True),
+    SAMPLE_DATA_SCENARIO=(str, "demo"),
+    SAMPLE_DATA_ADMIN_USER=(str, "admin"),
+    SAMPLE_DATA_VERBOSITY=(int, 1),
+    FORCE_SAMPLE_DATA_RECREATION=(bool, False),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -81,6 +86,13 @@ else:
     # Local development
     ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
+# Sample Data Settings
+CREATE_SAMPLE_DATA = env("CREATE_SAMPLE_DATA")
+SAMPLE_DATA_SCENARIO = env("SAMPLE_DATA_SCENARIO")
+SAMPLE_DATA_ADMIN_USER = env("SAMPLE_DATA_ADMIN_USER")
+SAMPLE_DATA_VERBOSITY = env("SAMPLE_DATA_VERBOSITY")
+FORCE_SAMPLE_DATA_RECREATION = env("FORCE_SAMPLE_DATA_RECREATION")
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -106,6 +118,7 @@ INSTALLED_APPS = [
     # Local apps
     "apps.core.apps.CoreConfig",
     "apps.accounts.apps.AccountsConfig",
+    "apps.products.apps.ProductsConfig",
 ]
 
 MIDDLEWARE = [
@@ -299,7 +312,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 
 
 # Email Backend Configuration
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_PORT = env.int("EMAIL_PORT")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")

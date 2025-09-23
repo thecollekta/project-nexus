@@ -23,8 +23,11 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 from django.views.decorators.csrf import csrf_exempt
-from drf_spectacular.views import (SpectacularAPIView, SpectacularRedocView,
-                                   SpectacularSwaggerView)
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 from graphene_django.views import GraphQLView
 
 
@@ -54,8 +57,10 @@ urlpatterns = [
         "api/v1/",
         include(
             [
-                # App routers
+                # Accounts app
                 path("accounts/", include("apps.accounts.urls")),
+                # Products app
+                path("products/", include("apps.products.urls")),
             ]
         ),
     ),

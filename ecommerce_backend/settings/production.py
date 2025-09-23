@@ -34,7 +34,9 @@ CACHES = {
             "SOCKET_CONNECT_TIMEOUT": 5,
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
-            "PASSWORD": env("REDIS_PASSWORD", default=None),  # noqa: F405 # type: ignore
+            "PASSWORD": env(
+                "REDIS_PASSWORD", default=None
+            ),  # noqa: F405 # type: ignore
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
         "KEY_PREFIX": "ecommerce",
@@ -47,7 +49,9 @@ CACHES = {
             "SOCKET_CONNECT_TIMEOUT": 5,
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
-            "PASSWORD": env("REDIS_PASSWORD", default=None),  # noqa: F405 # type: ignore
+            "PASSWORD": env(
+                "REDIS_PASSWORD", default=None
+            ),  # noqa: F405 # type: ignore
         },
         "KEY_PREFIX": "ecommerce_sessions",
     },
