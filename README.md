@@ -49,6 +49,21 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
 
 ### Core Functionality
 
+- **User Authentication & Authorization**
+  - JWT-based authentication
+  - Role-based access control (RBAC)
+  - Email verification
+  - Password reset flow
+
+- **Products & Catalog Management**
+  - Hierarchical category system
+  - Product variants and inventory tracking
+  - Product specifications and attributes
+  - Product images and media management
+  - SEO optimization (meta tags, slugs)
+  - Advanced filtering and search
+
+- **Order Processing**
 - **Base Models**: `AuditStampedModelBase` with common fields (`created_at`, `updated_at`, `created_by`, `updated_by`, `is_active`)
 - **Custom Managers**: `ActiveManager` and `AllObjectsManager` for soft delete functionality
 - **Base Views**: `BaseViewSet` and `BaseReadOnlyViewSet` with built-in logging and error handling
@@ -265,7 +280,11 @@ For a complete list of available GraphQL queries and mutations, visit the GraphQ
 Run the test suite with coverage:
 
 ```bash
-pytest
+pytest or pytest -v
+
+python -m pytest --cov=.
+
+pytest --cov-report=html
 ```
 
 ## Development Workflow

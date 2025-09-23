@@ -124,6 +124,15 @@ mutation {
 }
 ```
 
+**Note**: Use the `access` token for authenticated requests in the `Headers` section within GraphQL. The `refresh` token can be used to obtain a new access token when the current one expires.
+
+Example of setting the `Authorization` header:
+
+```json
+{
+  "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...."
+}
+
 ## User Profile Operations
 
 ### Get Current User
@@ -330,6 +339,401 @@ mutation {
 }
 ```
 
+## Products API
+
+The Products API provides access to product and category data through GraphQL. This section covers the available queries and their usage.
+
+### Categories
+
+#### Get All Categories
+
+Retrieve a list of all product categories with their hierarchy.
+
+```graphql
+query GetAllCategories {
+  categories {
+    id
+    name
+    slug
+    description
+    parent {
+      id
+      name
+    }
+    children {
+      id
+      name
+    }
+    productCount
+    level
+    isFeatured
+  }
+}
+```
+
+##### Example Response
+
+```json
+{
+  "data": {
+    "categories": [
+      {
+        "id": "4656a7db-69cc-4030-b056-0f4ce36b78cb",
+        "name": "Electronics",
+        "slug": "electronics",
+        "description": "Electronic devices and accessories",
+        "parent": null,
+        "children": [
+          {
+            "id": "50222937-ea80-4445-949f-7db66627307e",
+            "name": "Audio"
+          },
+          {
+            "id": "6781b411-bd08-4699-90c4-ab80d79c4219",
+            "name": "Laptops"
+          }
+        ],
+        "productCount": 15,
+        "level": 0,
+        "isFeatured": true
+      }
+    ]
+  }
+}
+```
+
+#### Get Filtered Categories
+
+Filter categories by featured status or parent category.
+
+```graphql
+query GetFeaturedCategories {
+  categories(featured: true) {
+    id
+    name
+    slug
+    productCount
+  }
+}
+```
+
+#### Get Root Categories
+
+Retrieve only top-level categories.
+
+```graphql
+query GetRootCategories {
+  categories(parent: "null") {
+    id
+    name
+    slug
+    children {
+      id
+      isFeatured
+    }
+  }
+}
+```
+
+#### Get a Single Categories
+
+```graphql
+query GetCategoryById {
+  category(id: "CATEGORY_ID") {
+    id
+    name
+    slug
+    description
+    parent {
+      id
+      name
+    }
+    children {
+      id
+      name
+      productCount
+    }
+    ancestors {
+      id
+      name
+      slug
+    }
+    level
+    productCount
+  }
+}
+```
+
+#### Get a Single Category by Slug Request
+
+```graphql
+# By Slug
+query GetCategoryBySlug {
+  category(slug: "slug") {
+    id
+    name
+    slug
+    description
+    productCount
+  }
+}
+```
+
+### Products
+
+#### Get All Products
+
+Retrieve a list of products with pagination and filtering options.
+
+```graphql
+query GetAllProducts {
+  products {
+    id
+    name
+    slug
+    price
+    compareAtPrice
+    discountPercentage
+    featuredImage
+    category {
+      id
+      name
+    }
+    images {
+      image
+      altText
+      isPrimary
+    }
+  }
+}
+```
+
+##### Get All Products Response
+
+```json
+{
+  "data": {
+    "products": [
+      {
+        "id": "f936279a-7f6a-40f4-958e-fa49d8dfa47a",
+        "name": "OnePlus 14T",
+        "slug": "oneplus-14t-1",
+        "price": "400.90",
+        "compareAtPrice": null,
+        "discountPercentage": 0,
+        "featuredImage": "",
+        "category": {
+          "id": "d5083cf3-4519-4939-8b7b-dc9ebb9b5809",
+          "name": "iPhone"
+        },
+        "images": []
+      },
+    ]
+  }
+}
+```
+
+#### Get Product by ID or Slug
+
+Retrieve detailed information about a specific product.
+
+```graphql
+query GetProduct($id: ID, $slug: String) {
+  product(id: $id, slug: $slug) {
+    id
+    name
+    slug
+    description
+    parent {
+      id
+      name
+    }
+    children {
+      id
+      name
+      productCount
+    }
+    ancestors {
+      id
+      name
+      slug
+    }
+    level
+    productCount
+  }
+}
+```
+
+### Product Mutations (Admin Only)
+
+#### Create a Category
+
+```graphql
+mutation CreateRootCategory {
+  createCategory(
+    input: {
+      name: "New Category", 
+      description: "Category description", 
+      isFeatured: true, 
+      sortOrder: 5, 
+      metaTitle: "New Category", 
+      metaDescription: "Description for SEO"
+    }
+  ) {
+    ok
+    category {
+      id
+      name
+      slug
+      isFeatured
+    }
+    errors
+  }
+}
+```
+
+#### Create a Subcategory
+
+```graphql
+mutation CreateSubCategory {
+  createCategory(
+    input: {
+      name: "Subcategory Name", 
+      description: "Subcategory description", 
+      parentId: "PARENT_CATEGORY_ID", 
+      isFeatured: true, 
+      icon: ""
+    }
+  ) {
+    ok
+    category {
+      id
+      name
+      slug
+      parent {
+        id
+        name
+      }
+    }
+    errors
+  }
+}
+```
+
+#### Update a Category
+
+```graphql
+mutation UpdateCategory {
+  updateCategory(
+    id: "CATEGORY_ID"
+    input: {
+      name: "Updated Category Name", 
+      isFeatured: false, 
+      sortOrder: 3, 
+      metaDescription: "Updated description for SEO"
+    }
+  ) {
+    ok
+    category {
+      id
+      name
+      slug
+      isFeatured
+      sortOrder
+      metaDescription
+    }
+    errors
+  }
+}
+```
+
+#### Create Product
+
+```graphql
+mutation CreateProduct {
+  createProduct(input: {
+    name: "New Product"
+    sku: "NEWPROD001"
+    slug: "new-product"
+    description: "Product description"
+    shortDescription: "Short description"
+    categoryId: "CATEGORY_ID"
+    price: "99.99"
+    compareAtPrice: ""
+    costPrice: "59.99"
+    stockQuantity: 10
+    lowStockThreshold: 5
+    trackInventory: true
+    allowBackorders: false
+    weight: "0.5"
+    isFeatured: true
+    isDigital: false
+    requiresShipping: true
+    metaTitle: "New Product"
+    metaDescription: "Description for SEO"
+  }) {
+    ok
+    product {
+      id
+      name
+      sku
+      price
+      stockQuantity
+      category {
+        id
+        name
+      }
+    }
+    errors
+  }
+}
+```
+
+#### Update Product
+
+```graphql
+mutation UpdateProduct {
+  updateProduct(
+    id: "PRODUCT_ID"
+    input: {
+      name: "Updated Product Name"
+      sku: "UPDATEDSKU001"
+      description: "Updated product description"
+      shortDescription: "Updated short description"
+      categoryId: "CATEGORY_ID" 
+      price: "379.00"
+      stockQuantity: 35
+      isFeatured: false
+      lowStockThreshold: 3
+      metaDescription: "Updated description for SEO"
+    }
+  ) {
+    ok
+    product {
+      id
+      name
+      price
+      compareAtPrice
+      stockQuantity
+      isFeatured
+      isInStock
+    }
+    errors
+  }
+}
+```
+
+#### Delete Product
+
+```graphql
+mutation DeleteProduct($id: ID!) {
+  deleteProduct(id: $id) {
+    success
+    errors
+  }
+}
+```
+
 ## Error Handling
 
 All GraphQL operations return an `errors` array that will contain any validation or authentication errors. Each error includes a descriptive message about what went wrong.
@@ -349,3 +753,12 @@ To prevent abuse, the following rate limits are in place:
 - **API Endpoints**: 1000 requests per hour
 
 If you exceed these limits, you'll receive a `429 Too Many Requests` response.
+
+## Best Practices
+
+1. **Use Pagination**: Always use pagination for product lists to improve performance.
+2. **Select Only Needed Fields**: Request only the fields you need to reduce payload size.
+3. **Use Variables**: Use GraphQL variables for dynamic queries.
+4. **Handle Errors**: Always check for and handle error responses.
+5. **Cache Responses**: Implement client-side caching for better performance.
+6. **Rate Limiting**: Be aware of API rate limits and implement appropriate backoff strategies.

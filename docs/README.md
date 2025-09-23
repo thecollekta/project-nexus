@@ -7,9 +7,11 @@ This directory contains comprehensive documentation for the E-commerce API, desi
 - `docs/` - Root documentation directory
   - `api/` - API reference documentation
     - [users.md](./api/users.md) - User management and authentication endpoints
+    - [products.md](./api/products.md) - Product catalog and inventory management
     - [graphql.md](./api/graphql.md) - GraphQL API reference and usage examples
   - `guides/` - How-to guides
     - [authentication.md](./guides/authentication.md) - Authentication and user management guide
+    - [products.md](./guides/products.md) - Product management guide
 
 ## Viewing the Documentation
 
