@@ -33,6 +33,7 @@ django-debug-toolbar==6.0.0
 django-environ==0.12.0
 django-extensions==4.1
 django-filter==25.1
+django-money==3.5.4
 django-stubs==5.2.5
 django-stubs-ext==5.2.5
 django-timezone-field==7.1
@@ -92,6 +93,7 @@ prompt-toolkit==3.0.52
 psutil==7.0.0
 psycopg2-binary==2.9.10
 pure-eval==0.2.3
+py-moneyed==3.0
 pycparser==2.23
 pydantic==2.9.2
 pydantic-core==2.23.4

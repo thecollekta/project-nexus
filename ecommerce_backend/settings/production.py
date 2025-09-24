@@ -35,7 +35,7 @@ CACHES = {
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
             "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD", default=None # type: ignore
+                "REDIS_PASSWORD", default=None  # type: ignore
             ),  # noqa: F405 # type: ignore
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
@@ -50,7 +50,7 @@ CACHES = {
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
             "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD", default=None # type: ignore
+                "REDIS_PASSWORD", default=None  # type: ignore
             ),  # noqa: F405 # type: ignore
         },
         "KEY_PREFIX": "ecommerce_sessions",
