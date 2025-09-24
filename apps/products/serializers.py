@@ -13,10 +13,18 @@ from typing import Any, ClassVar
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
-                                   SanitizedTextField)
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.core.serializers import (
+    BaseModelSerializer,
+    SanitizedCharField,
+    SanitizedTextField,
+)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 
 
 class CategoryListSerializer(BaseModelSerializer):
@@ -440,6 +448,8 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
     ERROR_HEIGHT_INVALID = "Height must be greater than zero."
     ERROR_CATEGORY_INACTIVE = "Selected category must be active."
 
+    PRICE_REVIEW_THRESHOLD = Decimal("10000.00")
+
     name = SanitizedCharField(max_length=255)
     description = SanitizedTextField()
     short_description = SanitizedTextField(
@@ -472,6 +482,7 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
             "price",
             "compare_at_price",
             "cost_price",
+            "price_requires_review",
             "stock_quantity",
             "low_stock_threshold",
             "track_inventory",
@@ -495,6 +506,7 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
         read_only_fields: ClassVar[list] = [
             *BaseModelSerializer.Meta.read_only_fields,
             "slug",
+            "price_requires_review",
         ]
 
     def validate_sku(self, value: str) -> str:
@@ -577,6 +589,14 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
 
         # Validate compare_at_price vs price
         price = attrs.get("price", self.instance.price if self.instance else None)
+        # Check if price exceeds the review threshold
+        if price and price >= self.PRICE_REVIEW_THRESHOLD:
+            attrs["price_requires_review"] = True
+            # You can also set is_active to False by default for such products
+            # attrs["is_active"] = False
+        else:
+            attrs["price_requires_review"] = False
+
         compare_at_price = attrs.get("compare_at_price")
 
         if compare_at_price and price and compare_at_price <= price:

@@ -14,7 +14,13 @@ from django.dispatch import receiver
 from django.utils.text import slugify
 
 from apps.core.middleware import get_current_user
-from apps.products.models import Category, Product, ProductImage, ProductReview
+from apps.products.models import (
+    Category,
+    PriceHistory,
+    Product,
+    ProductImage,
+    ProductReview,
+)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -72,9 +78,25 @@ def category_post_save(sender, instance, created, **kwargs):
 @receiver(pre_save, sender=Product)
 def product_pre_save(sender, instance, **kwargs):
     """
-    Handle product pre-save operations.
+    Handle product pre-save operations, including price history tracking.
     """
     current_user = get_current_user()
+
+    # Track price change if the product already exists
+    if instance.pk:
+        try:
+            old_instance = Product.objects.get(pk=instance.pk)
+            if old_instance.price != instance.price:
+                PriceHistory.objects.create(
+                    product=instance,
+                    old_price=old_instance.price,
+                    new_price=instance.price,
+                    changed_by=current_user
+                    if current_user and current_user.is_authenticated
+                    else None,
+                )
+        except Product.DoesNotExist:
+            pass  # Object is new, so no history yet
 
     # Auto-generate slug if not provided
     if not instance.slug and instance.name:

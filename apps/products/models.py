@@ -15,9 +15,9 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+from djmoney.models.fields import MoneyField
 
-from apps.core.models import (ActiveManager, AllObjectsManager,
-                              AuditStampedModelBase)
+from apps.core.models import ActiveManager, AllObjectsManager, AuditStampedModelBase
 
 
 class CategoryManager(ActiveManager):
@@ -314,30 +314,46 @@ class Product(AuditStampedModelBase):
     )
 
     # Pricing
-    price = models.DecimalField(
+    price = MoneyField(
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal("0.01"))],
+        default_currency="GHS",
+        validators=[
+            MinValueValidator(Decimal("0.01")),
+            MaxValueValidator(Decimal("9999999.99")),
+        ],
         help_text=_("Product price"),
         db_index=True,
     )
 
-    compare_at_price = models.DecimalField(
+    compare_at_price = MoneyField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(Decimal("0.01"))],
+        default_currency="GHS",
+        validators=[
+            MinValueValidator(Decimal("0.01")),
+            MaxValueValidator(Decimal("9999999.99")),
+        ],
         help_text=_("Original price for comparison (shows discount)"),
     )
 
-    cost_price = models.DecimalField(
+    cost_price = MoneyField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(Decimal("0.00"))],
+        default_currency="GHS",
+        validators=[
+            MinValueValidator(Decimal("0.00")),
+            MaxValueValidator(Decimal("9999999.99")),
+        ],
         help_text=_("Cost price for margin calculation"),
+    )
+    price_requires_review = models.BooleanField(
+        default=False,
+        help_text=_("Flag for manual review if price is unusually high"),
     )
 
     # Inventory
@@ -638,9 +654,7 @@ class ProductImage(AuditStampedModelBase):
             ProductImage.objects.filter(
                 product=self.product,
                 is_primary=True,
-            ).exclude(
-                id=self.id
-            ).update(is_primary=False)
+            ).exclude(id=self.id).update(is_primary=False)
 
         # Auto-generate alt text if not provided
         if not self.alt_text:
@@ -743,3 +757,31 @@ class ProductReview(AuditStampedModelBase):
 
     def __str__(self) -> str:
         return f"Review for {self.product.name} by {self.user.get_full_name()}"
+
+
+class PriceHistory(models.Model):
+    """
+    Tracks the history of price changes for a product.
+    """
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="price_history"
+    )
+
+    old_price = MoneyField(max_digits=10, decimal_places=2)
+    new_price = MoneyField(max_digits=10, decimal_places=2)
+    changed_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="price_changes",
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Price History Entry")
+        verbose_name_plural = _("Price History Entries")
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.product.name} changed from {self.old_price} to {self.new_price} at {self.timestamp}"

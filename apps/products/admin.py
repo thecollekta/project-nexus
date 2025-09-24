@@ -12,8 +12,14 @@ from typing import ClassVar
 from django.contrib import admin
 from django.utils.html import format_html
 
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.products.models import (
+    Category,
+    PriceHistory,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 
 
 @admin.register(Category)
@@ -153,6 +159,20 @@ class ProductReviewInline(admin.TabularInline):
     readonly_fields: ClassVar[list] = ["user", "created_at"]
 
 
+class PriceHistoryInline(admin.TabularInline):
+    """
+    Inline admin for viewing price history.
+    """
+
+    model = PriceHistory
+    extra = 0
+    readonly_fields = ["old_price", "new_price", "changed_by", "timestamp"]
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """
@@ -214,6 +234,7 @@ class ProductAdmin(admin.ModelAdmin):
         ProductImageInline,
         ProductSpecificationInline,
         ProductReviewInline,
+        PriceHistoryInline,
     ]
 
     fieldsets: ClassVar[list] = [
