@@ -8,6 +8,7 @@ psycopg2-binary==2.9.10
 # API Framework
 djangorestframework>=3.16.1
 djangorestframework-simplejwt>=5.5.1
+drf-nested-routers>=0.95.0
 drf-spectacular>=0.28.0
 drf-spectacular-sidecar>=2025.9.1
 graphene>=3.4.3

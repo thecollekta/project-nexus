@@ -29,7 +29,7 @@ python manage.py migrate --noinput
 
 # Load sample product data
 echo "--- Loading sample product data ---"
-python manage.py products_sample_data --user=admin --count=20 --with-images --with-specs --scenario=basic
+python manage.py products_sample_data --user=admin --count=20 --with-images --with-specs --scenario=demo
 
 # Collect static files
 echo "--- Collecting static files ---"
