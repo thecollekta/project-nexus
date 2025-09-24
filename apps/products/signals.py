@@ -8,12 +8,13 @@ for product and category operations.
 """
 
 import structlog
+from django.db.models import Avg, Count
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils.text import slugify
 
 from apps.core.middleware import get_current_user
-from apps.products.models import Category, Product, ProductImage
+from apps.products.models import Category, Product, ProductImage, ProductReview
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -227,4 +228,33 @@ def product_image_post_delete(sender, instance, **kwargs):
         product_id=instance.product.id,
         image_id=instance.id,
         was_primary=instance.is_primary,
+    )
+
+
+@receiver(post_save, sender=ProductReview)
+@receiver(post_delete, sender=ProductReview)
+def update_product_rating(sender, instance, **kwargs):
+    """
+    Recalculate and update the product's average rating and review count
+    whenever a review is saved or deleted.
+    """
+    product = instance.product
+
+    # Use aggregation to calculate the new average rating and count
+    active_reviews = ProductReview.objects.filter(product=product, is_active=True)
+
+    aggregation = active_reviews.aggregate(
+        new_average=Avg("rating"), new_count=Count("id")
+    )
+
+    product.average_rating = aggregation.get("new_average") or 0
+    product.review_count = aggregation.get("new_count") or 0
+
+    product.save(update_fields=["average_rating", "review_count", "updated_at"])
+
+    logger.info(
+        "product_rating_updated",
+        product_id=product.id,
+        new_average_rating=float(product.average_rating),
+        review_count=product.review_count,
     )

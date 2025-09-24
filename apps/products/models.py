@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -456,6 +456,19 @@ class Product(AuditStampedModelBase):
         help_text=_("Product availability end date"),
     )
 
+    # Rating fields
+    average_rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text=_("Average product rating"),
+    )
+
+    review_count = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Total number of reviews"),
+    )
+
     # Custom managers
     objects = ProductManager()
     all_objects = AllObjectsManager()
@@ -679,3 +692,54 @@ class ProductSpecification(AuditStampedModelBase):
 
     def __str__(self) -> str:
         return f"{self.product.name} - {self.name}: {self.value}"
+
+
+class ProductReview(AuditStampedModelBase):
+    """
+    Model for storing product reviews and ratings from users.
+    """
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+        help_text=_("The product being reviewed"),
+    )
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="reviews",
+        help_text=_("The user who wrote the review"),
+    )
+    rating = models.PositiveIntegerField(
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(5),
+        ],
+        help_text=_("Rating from 1 to 5"),
+    )
+    title = models.CharField(
+        max_length=255,
+        help_text=_("Brief title for the review"),
+    )
+    comment = models.TextField(
+        blank=True,
+        help_text=_("Detailed review comment"),
+    )
+
+    # Custom managers
+    objects = ActiveManager()
+    all_objects = AllObjectsManager()
+
+    class Meta:
+        verbose_name = _("Product Review")
+        verbose_name_plural = _("Product Reviews")
+        ordering: ClassVar[list] = ["-created_at"]
+        unique_together: ClassVar[list] = ["product", "user"]
+        indexes: ClassVar[list] = [
+            models.Index(fields=["product", "user"]),
+            models.Index(fields=["rating"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Review for {self.product.name} by {self.user.get_full_name()}"

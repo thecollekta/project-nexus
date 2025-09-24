@@ -13,7 +13,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from apps.products.models import (Category, Product, ProductImage,
-                                  ProductSpecification)
+                                  ProductReview, ProductSpecification)
 
 
 @admin.register(Category)
@@ -141,6 +141,18 @@ class ProductSpecificationInline(admin.TabularInline):
     readonly_fields: ClassVar[list] = ["created_at", "updated_at"]
 
 
+class ProductReviewInline(admin.TabularInline):
+    """
+    Inline admin for product reviews.
+    """
+
+    model = ProductReview
+    extra = 0
+    min_num = 0
+    fields: ClassVar[list] = ["user", "rating", "title", "is_active"]
+    readonly_fields: ClassVar[list] = ["user", "created_at"]
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """
@@ -155,6 +167,8 @@ class ProductAdmin(admin.ModelAdmin):
         "stock_display",
         "status_display",
         "is_featured",
+        "average_rating",
+        "review_count",
         "created_at",
     ]
 
@@ -192,9 +206,15 @@ class ProductAdmin(admin.ModelAdmin):
         "profit_margin",
         "is_in_stock",
         "is_low_stock",
+        "average_rating",
+        "review_count",
     ]
 
-    inlines: ClassVar[list] = [ProductImageInline, ProductSpecificationInline]
+    inlines: ClassVar[list] = [
+        ProductImageInline,
+        ProductSpecificationInline,
+        ProductReviewInline,
+    ]
 
     fieldsets: ClassVar[list] = [
         (
@@ -578,6 +598,42 @@ class ProductSpecificationAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(ProductReview)
+class ProductReviewAdmin(admin.ModelAdmin):
+    """
+    Admin interface for product reviews.
+    """
+
+    list_display: ClassVar[list] = [
+        "product",
+        "user",
+        "rating",
+        "title",
+        "is_active",
+        "created_at",
+    ]
+    list_filter: ClassVar[list] = ["is_active", "rating", "created_at"]
+    search_fields: ClassVar[list] = ["product__name", "user__email", "title", "comment"]
+    readonly_fields: ClassVar[list] = [
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+    ]
+    list_select_related: ClassVar[list] = ["product", "user"]
+    actions: ClassVar[list] = ["approve_reviews", "disapprove_reviews"]
+
+    def approve_reviews(self, request, queryset):
+        queryset.update(is_active=True)
+
+    approve_reviews.short_description = "Approve selected reviews"
+
+    def disapprove_reviews(self, request, queryset):
+        queryset.update(is_active=False)
+
+    disapprove_reviews.short_description = "Disapprove selected reviews"
 
 
 # Custom admin site configuration

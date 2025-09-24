@@ -9,8 +9,10 @@ with both authenticated and public access patterns.
 
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+from rest_framework_nested import routers
 
 from apps.products.views import (CategoryViewSet, ProductImageViewSet,
+                                 ProductReviewViewSet,
                                  ProductSpecificationViewSet, ProductViewSet,
                                  PublicCategoryViewSet, PublicProductViewSet)
 
@@ -30,6 +32,10 @@ public_router = DefaultRouter()
 public_router.register(r"products", PublicProductViewSet, basename="public-product")
 public_router.register(r"categories", PublicCategoryViewSet, basename="public-category")
 
+# Nested router for reviews under products
+products_router = routers.NestedSimpleRouter(router, r"products", lookup="product")
+products_router.register(r"reviews", ProductReviewViewSet, basename="product-reviews")
+
 # Add app_name for namespace
 app_name = "products"
 
@@ -38,6 +44,7 @@ urlpatterns = [
     path("public/", include(public_router.urls)),
     # Authenticated API endpoints
     path("", include(router.urls)),
+    path("", include(products_router.urls)),
     # Additional public endpoints
     path(
         "public/products/featured/",

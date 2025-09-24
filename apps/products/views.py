@@ -16,30 +16,41 @@ from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
-                                   extend_schema, extend_schema_view)
-from rest_framework import filters, permissions, status
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
+from rest_framework import filters, permissions, serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from apps.core.pagination import (LargeResultsSetPagination,
-                                  StandardResultsSetPagination)
+from apps.core.pagination import LargeResultsSetPagination, StandardResultsSetPagination
 from apps.core.views import BaseReadOnlyViewSet, BaseViewSet
 from apps.products.filters import CategoryFilter, ProductFilter
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductSpecification)
-from apps.products.serializers import (CategoryDetailSerializer,
-                                       CategoryListSerializer,
-                                       CategorySerializerSelector,
-                                       ProductDetailSerializer,
-                                       ProductImageSerializer,
-                                       ProductInventorySerializer,
-                                       ProductListSerializer,
-                                       ProductPricingSerializer,
-                                       ProductSerializerSelector,
-                                       ProductSpecificationSerializer)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
+from apps.products.permissions import IsOwnerOrReadOnly
+from apps.products.serializers import (
+    CategoryDetailSerializer,
+    CategoryListSerializer,
+    CategorySerializerSelector,
+    ProductDetailSerializer,
+    ProductImageSerializer,
+    ProductInventorySerializer,
+    ProductListSerializer,
+    ProductPricingSerializer,
+    ProductReviewSerializer,
+    ProductSerializerSelector,
+    ProductSpecificationSerializer,
+)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -849,7 +860,7 @@ class ProductImageViewSet(BaseViewSet):
 
     queryset = ProductImage.objects.all()
     serializer_class = ProductImageSerializer
-    permission_classes: ClassVar[list] = [permissions.IsAuthenticated]
+    permission_classes: ClassVar[list] = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends: ClassVar[list] = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields: ClassVar[list[str]] = ["product", "is_primary"]
     ordering_fields: ClassVar[list[str]] = ["sort_order", "created_at"]
@@ -1150,3 +1161,35 @@ class PublicProductViewSet(BaseReadOnlyViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class ProductReviewViewSet(BaseViewSet):
+    """
+    ViewSet for managing product reviews.
+    """
+
+    queryset = ProductReview.objects.all()
+    serializer_class = ProductReviewSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["rating"]
+
+    def get_queryset(self) -> QuerySet[ProductReview]:
+        """
+        Filter reviews for a specific product from the URL.
+        """
+
+        return super().get_queryset().filter(product_id=self.kwargs["product_pk"])
+
+    def perform_create(self, serializer):
+        """
+        Associate the review with the product from the URL and the current user.
+        """
+
+        product = Product.objects.get(pk=self.kwargs["product_pk"])
+        # Prevent duplicate reviews
+        if ProductReview.objects.filter(
+            product=product, user=self.request.user
+        ).exists():
+            raise serializers.ValidationError("You have already reviewed this product.")
+        serializer.save(user=self.request.user, product=product)

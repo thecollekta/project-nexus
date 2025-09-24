@@ -16,7 +16,7 @@ from rest_framework import serializers
 from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
                                    SanitizedTextField)
 from apps.products.models import (Category, Product, ProductImage,
-                                  ProductSpecification)
+                                  ProductReview, ProductSpecification)
 
 
 class CategoryListSerializer(BaseModelSerializer):
@@ -250,6 +250,34 @@ class ProductSpecificationSerializer(BaseModelSerializer):
         return value
 
 
+class ProductReviewSerializer(BaseModelSerializer):
+    """
+    Serializer for product reviews.
+    """
+
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta(BaseModelSerializer.Meta):
+        model = ProductReview
+        fields: ClassVar[list] = [
+            *BaseModelSerializer.Meta.fields,
+            "user",
+            "rating",
+            "title",
+            "comment",
+        ]
+        read_only_fields: ClassVar[list] = [
+            *BaseModelSerializer.Meta.read_only_fields,
+            "product",
+        ]
+
+    def validate_rating(self, value: int) -> int:
+        """Ensure rating is between 1 and 5."""
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
+
+
 class ProductListSerializer(BaseModelSerializer):
     """
     Lightweight serializer for product listings.
@@ -262,6 +290,10 @@ class ProductListSerializer(BaseModelSerializer):
     is_low_stock = serializers.ReadOnlyField()
     discount_percentage = serializers.ReadOnlyField()
     images_count = serializers.SerializerMethodField()
+    average_rating = serializers.DecimalField(
+        max_digits=3, decimal_places=2, read_only=True
+    )
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta(BaseModelSerializer.Meta):
         model = Product
@@ -283,6 +315,8 @@ class ProductListSerializer(BaseModelSerializer):
             "is_low_stock",
             "discount_percentage",
             "images_count",
+            "average_rating",
+            "review_count",
         ]
 
     def get_images_count(self, obj: Product) -> int:
@@ -308,6 +342,13 @@ class ProductDetailSerializer(BaseModelSerializer):
 
     # Category breadcrumb
     category_breadcrumb = serializers.SerializerMethodField()
+
+    # Product review
+    reviews = ProductReviewSerializer(many=True, read_only=True)
+    average_rating = serializers.DecimalField(
+        max_digits=3, decimal_places=2, read_only=True
+    )
+    review_count = serializers.IntegerField(read_only=True)
 
     class Meta(BaseModelSerializer.Meta):
         model = Product
@@ -346,6 +387,9 @@ class ProductDetailSerializer(BaseModelSerializer):
             "discount_percentage",
             "profit_margin",
             "category_breadcrumb",
+            "average_rating",
+            "review_count",
+            "reviews",
         ]
 
     def get_category_breadcrumb(self, obj: Product) -> list[dict]:

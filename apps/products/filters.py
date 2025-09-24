@@ -460,12 +460,16 @@ class ProductFilter(django_filters.FilterSet):
         if value:
             return queryset.filter(
                 track_inventory=True,
-                stock_quantity__lte=models.F("low_stock_threshold"),  # noqa: F821 # type: ignore
+                stock_quantity__lte=models.F(
+                    "low_stock_threshold"
+                ),  # noqa: F821 # type: ignore
                 stock_quantity__gt=0,
             )
         return queryset.exclude(
             track_inventory=True,
-            stock_quantity__lte=models.F("low_stock_threshold"),  # noqa: F821 # type: ignore
+            stock_quantity__lte=models.F(
+                "low_stock_threshold"
+            ),  # noqa: F821 # type: ignore
             stock_quantity__gt=0,
         )
 
