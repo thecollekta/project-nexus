@@ -58,6 +58,8 @@ urlpatterns = [
                 path("accounts/", include("apps.accounts.urls")),
                 # Products app
                 path("products/", include("apps.products.urls")),
+                # Orders app
+                path("orders/", include("apps.orders.urls")),
             ]
         ),
     ),

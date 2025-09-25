@@ -24,6 +24,14 @@ if os.name == "nt":
 # Configure periodic tasks
 app.conf.beat_schedule = {
     # Add your periodic tasks here
+    "cleanup-expired-carts": {
+        "task": "apps.orders.tasks.cleanup_expired_carts",
+        "schedule": 3600.0,  # Run every hour
+    },
+    "update-order-statuses": {
+        "task": "apps.orders.tasks.update_order_statuses",
+        "schedule": 1800.0,  # Run every 30 minutes
+    },
 }
 
 

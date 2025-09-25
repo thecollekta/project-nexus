@@ -24,6 +24,8 @@ redis>=6.4.0
 django-redis>=6.0.0
 requests>=2.32.5
 django-money>=3.5.4
+forex-python==1.9.2
+legacy-cgi==2.6.3
 
 # Background Tasks
 celery>=5.5.3
