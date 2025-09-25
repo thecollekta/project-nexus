@@ -1,0 +1,16 @@
+Your Order Has Shipped!
+
+Order Number: {{ order.order_number }}
+
+Tracking Information:
+{% if order.tracking_number %}Tracking Number: {{ order.tracking_number }}
+{% endif %}{% if order.carrier %}Carrier: {{ order.carrier }}
+{% endif %}{% if order.estimated_delivery_date %}Estimated Delivery: {{ order.estimated_delivery_date|date:"F d, Y" }}
+{% endif %}
+
+Shipping Address:
+{{ order.get_full_shipping_address }}
+
+Your order is on its way! You can use the tracking number above to monitor your shipment's progress.
+
+Thank you for shopping with {{ site_name }}!

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Order Confirmation - {{ order.order_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .order-details {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .item {
+            border-bottom: 1px solid #dee2e6;
+            padding: 10px 0;
+        }
+
+        .total {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .shipping-address {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Thank You for Your Order!</h1>
+            <p>Order Number: <strong>{{ order.order_number }}</strong></p>
+        </div>
+
+        <div class="order-details">
+            <h2>Order Summary</h2>
+            {% for item in order.items.all %}
+            <div class="item">
+                <strong>{{ item.product_name }}</strong><br>
+                Quantity: {{ item.quantity }} × ${{ item.price }} = ${{ item.total_price }}
+            </div>
+            {% endfor %}
+
+            <div class="item total">
+                <p>Subtotal: ${{ order.subtotal }}</p>
+                <p>Tax: ${{ order.tax_amount }}</p>
+                <p>Shipping: ${{ order.shipping_cost }}</p>
+                <p>Total: ${{ order.total_amount }}</p>
+            </div>
+        </div>
+
+        <div class="shipping-address">
+            <h3>Shipping Address</h3>
+            <p>{{ order.get_full_shipping_address|linebreaks }}</p>
+        </div>
+
+        <p>We'll send you another email when your order ships.</p>
+        <p>Thank you for shopping with {{ site_name }}!</p>
+    </div>
+</body>
+
+</html>

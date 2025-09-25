@@ -1,0 +1,13 @@
+Order Status Update
+
+Order Number: {{ order.order_number }}
+
+Your order status has been updated to: {{ order.get_status_display }}
+
+{% if new_status == 'cancelled' %}Your order has been cancelled. If you were charged, a refund will be processed within 3-5 business days.
+{% elif new_status == 'delivered' %}Your order has been delivered! We hope you enjoy your purchase.
+{% endif %}
+
+If you have any questions about your order, please contact our customer service team.
+
+Thank you for shopping with {{ site_name }}!
