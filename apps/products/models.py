@@ -17,7 +17,9 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import MoneyField
 
-from apps.core.models import ActiveManager, AllObjectsManager, AuditStampedModelBase
+from apps.core.models import (ActiveManager, AllObjectsManager,
+                              AuditStampedModelBase)
+from apps.products.mixins import PriceMixin
 
 
 class CategoryManager(ActiveManager):
@@ -259,13 +261,13 @@ class ProductManager(ActiveManager):
         """Get products within a price range."""
         queryset = self.get_queryset()
         if min_price is not None:
-            queryset = queryset.filter(price__gte=min_price)
+            queryset = queryset.filter(price__amount__gte=min_price)
         if max_price is not None:
-            queryset = queryset.filter(price__lte=max_price)
+            queryset = queryset.filter(price__amount__lte=max_price)
         return queryset
 
 
-class Product(AuditStampedModelBase):
+class Product(AuditStampedModelBase, PriceMixin):
     """
     Product model representing items in the catalog.
 
@@ -531,7 +533,7 @@ class Product(AuditStampedModelBase):
 
     def clean(self):
         """Validate product data."""
-        if self.compare_at_price and self.compare_at_price <= self.price:
+        if self.compare_at_price and self.compare_at_price.amount <= self.price.amount:
             raise ValidationError(
                 _("Compare at price must be higher than the regular price."),
             )
@@ -558,22 +560,6 @@ class Product(AuditStampedModelBase):
         if not self.track_inventory:
             return False
         return self.stock_quantity <= self.low_stock_threshold
-
-    @property
-    def discount_percentage(self) -> Decimal | None:
-        """Calculate discount percentage if compare_at_price is set."""
-        if not self.compare_at_price or self.compare_at_price <= self.price:
-            return None
-        discount = self.compare_at_price - self.price
-        return round((discount / self.compare_at_price) * 100, 2)
-
-    @property
-    def profit_margin(self) -> Decimal | None:
-        """Calculate profit margin if cost_price is set."""
-        if not self.cost_price:
-            return None
-        profit = self.price - self.cost_price
-        return round((profit / self.price) * 100, 2)
 
     def reduce_stock(self, quantity: int) -> bool:
         """
@@ -654,7 +640,9 @@ class ProductImage(AuditStampedModelBase):
             ProductImage.objects.filter(
                 product=self.product,
                 is_primary=True,
-            ).exclude(id=self.id).update(is_primary=False)
+            ).exclude(
+                id=self.id
+            ).update(is_primary=False)
 
         # Auto-generate alt text if not provided
         if not self.alt_text:
@@ -759,7 +747,7 @@ class ProductReview(AuditStampedModelBase):
         return f"Review for {self.product.name} by {self.user.get_full_name()}"
 
 
-class PriceHistory(models.Model):
+class PriceHistory(models.Model, PriceMixin):
     """
     Tracks the history of price changes for a product.
     """
@@ -768,8 +756,8 @@ class PriceHistory(models.Model):
         Product, on_delete=models.CASCADE, related_name="price_history"
     )
 
-    old_price = MoneyField(max_digits=10, decimal_places=2)
-    new_price = MoneyField(max_digits=10, decimal_places=2)
+    old_price = MoneyField(max_digits=10, decimal_places=2, default_currency="GHS")
+    new_price = MoneyField(max_digits=10, decimal_places=2, default_currency="GHS")
     changed_by = models.ForeignKey(
         "accounts.User",
         null=True,

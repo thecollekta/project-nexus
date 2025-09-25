@@ -25,7 +25,7 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
 from apps.products.models import (Category, Product, ProductImage,
-                                  ProductSpecification)
+                                  ProductReview, ProductSpecification)
 
 # Constants for product generation
 DEFAULT_PRODUCT_COUNT = 100
@@ -64,6 +64,7 @@ class Command(BaseCommand):
         super().__init__()
         self.user = None
         self.categories = {}
+        self.sample_users = []
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -142,6 +143,23 @@ class Command(BaseCommand):
                 self.style.SUCCESS(_(f"Created superuser: {username}")),
             )
 
+        # Create additional users for reviews
+        self.stdout.write(_("Creating sample users for reviews..."))
+        for i in range(5):
+            email = f"user{i+1}@example.com"
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    "username": f"user{i+1}",
+                    "first_name": f"Sample",
+                    "last_name": f"User{i+1}",
+                },
+            )
+            if created:
+                user.set_password("password123")
+                user.save()
+            self.sample_users.append(user)
+
         # Clear existing data if requested
         if clear_existing:
             self._clear_existing_data()
@@ -154,25 +172,25 @@ class Command(BaseCommand):
                 if not categories_only:
                     if scenario == "basic":
                         # Create basic catalog (50 products)
-                        options["count"] = 50
-                        options["with_images"] = False
-                        options["with_specs"] = True
+                        options = 50
+                        options = False
+                        options = True
                     elif scenario == "advanced":
                         # Create advanced catalog (200 products with images and specs)
-                        options["count"] = 200
-                        options["with_images"] = True
-                        options["with_specs"] = True
+                        options = 200
+                        options = True
+                        options = True
                     elif scenario == "demo":
                         # Create demo catalog (100 featured products)
-                        options["count"] = 100
-                        options["with_images"] = True
-                        options["with_specs"] = True
+                        options = 100
+                        options = True
+                        options = True
                         self._create_demo_featured_products()
                     elif scenario == "performance":
                         # Create large catalog for performance testing (1000 products)
-                        options["count"] = 1000
-                        options["with_images"] = False
-                        options["with_specs"] = False
+                        options = 1000
+                        options = False
+                        options = False
 
                     self._create_products(product_count, with_images, with_specs)
 
@@ -406,7 +424,7 @@ class Command(BaseCommand):
         """Recursively create category hierarchy."""
         for name, data in category_data.items():
             # Create category
-            category = Category.objects.create(
+            category, created = Category.objects.get_or_create(
                 name=name,
                 description=data.get("description", f"{name} category"),
                 parent=parent,
@@ -419,7 +437,8 @@ class Command(BaseCommand):
             # Store for later use
             self.categories[name.lower().replace(" ", "_")] = category
 
-            self.stdout.write(f"  {'  ' * level}Created category: {name}")
+            if created:
+                self.stdout.write(f"  {'  ' * level}Created category: {name}")
 
             # Create children
             children = data.get("children", {})
@@ -442,74 +461,91 @@ class Command(BaseCommand):
         index: int,
     ) -> Product:
         """Create a single product from template."""
-        # Generate product name
-        name_template = random.choice(template["name_templates"])
-        name = self._generate_product_name(name_template, template, index)
+        try:
+            # Generate product name
+            name_template = random.choice(template["name_templates"])
+            name = self._generate_product_name(name_template, template, index)
 
-        # Generate SKU
-        sku = self._generate_sku(name, category, index)
+            # Generate unique slug
+            base_slug = slugify(name)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
 
-        # Check if SKU already exists
-        if Product.objects.filter(sku=sku).exists():
-            sku = f"{sku}-{index}"
+            # Generate SKU
+            sku = self._generate_sku(name, category, index)
 
-        # Generate pricing
-        min_price, max_price = template["price_range"]
-        base_price = Decimal(str(random.uniform(min_price, max_price)))
-        base_price = base_price.quantize(PRICE_QUANTIZE)
+            # Check if SKU already exists
+            while Product.objects.filter(sku=sku).exists():
+                sku = f"{sku}-{random.randint(100, 999)}"
 
-        # Sometimes add compare_at_price for discounts
-        compare_at_price = None
-        if random.random() < DISCOUNT_CHANCE:  # 30% chance of discount
-            discount = random.uniform(*DISCOUNT_RANGE)  # 10-40% discount
-            compare_at_price = base_price / (1 - discount)
-            compare_at_price = compare_at_price.quantize(PRICE_QUANTIZE)
+            # Generate pricing
+            min_price, max_price = template["price_range"]
+            base_price = Decimal(str(random.uniform(min_price, max_price))).quantize(
+                PRICE_QUANTIZE
+            )
 
-        # Generate descriptions
-        description = random.choice(template["descriptions"])
-        short_description = (
-            description[:DEFAULT_DESCRIPTION_LIMIT] + "..."
-            if len(description) > DEFAULT_DESCRIPTION_LIMIT
-            else description
-        )
+            # Sometimes add compare_at_price for discounts
+            compare_at_price = None
+            if random.random() < DISCOUNT_CHANCE:  # 30% chance of discount
+                discount = random.uniform(*DISCOUNT_RANGE)  # 10-40% discount
+                compare_at_price = base_price / (
+                    Decimal("1.0") - Decimal(str(discount))
+                )
+                compare_at_price = compare_at_price.quantize(PRICE_QUANTIZE)
 
-        # Generate stock
-        stock_quantity = random.randint(0, MAX_STOCK_QUANTITY)
-        low_stock_threshold = random.randint(*LOW_STOCK_THRESHOLD_RANGE)
+            # Generate descriptions
+            description = random.choice(template["descriptions"])
+            short_description = (
+                description[:DEFAULT_DESCRIPTION_LIMIT] + "..."
+                if len(description) > DEFAULT_DESCRIPTION_LIMIT
+                else description
+            )
 
-        # Generate weight
-        if "weight_range" in template:
-            weight_min, weight_max = template["weight_range"]
-            weight = Decimal(str(random.uniform(weight_min, weight_max)))
-            weight = weight.quantize(WEIGHT_QUANTIZE)
-        else:
-            weight = None
+            # Generate stock
+            stock_quantity = random.randint(0, MAX_STOCK_QUANTITY)
+            low_stock_threshold = random.randint(*LOW_STOCK_THRESHOLD_RANGE)
 
-        # Determine if featured
-        is_featured = random.random() < template.get(
-            "featured_chance",
-            DEFAULT_FEATURED_CHANCE,
-        )
+            # Generate weight
+            if "weight_range" in template:
+                weight_min, weight_max = template["weight_range"]
+                weight = Decimal(str(random.uniform(weight_min, weight_max))).quantize(
+                    WEIGHT_QUANTIZE
+                )
+            else:
+                weight = None
 
-        # Create and return product
-        return Product.objects.create(
-            name=name,
-            sku=sku,
-            description=f"{description} This {name.lower()} combines quality, performance, and value in one exceptional package.",
-            short_description=short_description,
-            category=category,
-            price=base_price,
-            compare_at_price=compare_at_price,
-            stock_quantity=stock_quantity,
-            low_stock_threshold=low_stock_threshold,
-            weight=weight,
-            is_featured=is_featured,
-            is_digital=template.get("digital", False),
-            track_inventory=True,
-            allow_backorders=random.choice([True, False]),
-            created_by=self.user,
-            updated_by=self.user,
-        )
+            # Determine if featured
+            is_featured = random.random() < template.get(
+                "featured_chance",
+                DEFAULT_FEATURED_CHANCE,
+            )
+
+            # Create and return product
+            return Product.objects.create(
+                name=name,
+                slug=slug,
+                sku=sku,
+                description=f"{description} This {name.lower()} combines quality, performance, and value in one exceptional package.",
+                short_description=short_description,
+                category=category,
+                price=base_price,
+                compare_at_price=compare_at_price,
+                stock_quantity=stock_quantity,
+                low_stock_threshold=low_stock_threshold,
+                weight=weight,
+                is_featured=is_featured,
+                is_digital=template.get("digital", False),
+                track_inventory=True,
+                allow_backorders=random.choice([True, False]),
+                created_by=self.user,
+                updated_by=self.user,
+            )
+        except Exception as e:
+            self.stderr.write(f"Error creating product: {str(e)}")
+            return None
 
     def _generate_product_name(
         self,
@@ -1161,17 +1197,17 @@ class Command(BaseCommand):
 
         for product_data in demo_products:
             # Find appropriate category
-            categories = Category.objects.filter(
+            category = Category.objects.filter(
                 name__icontains=product_data["category"],
             ).first()
 
-            if categories:
+            if category:
                 Product.objects.get_or_create(
                     sku=slugify(product_data["name"]).upper()[:20],
                     defaults={
                         "name": product_data["name"],
                         "description": product_data["description"],
-                        "category": categories,
+                        "category": category,
                         "price": Decimal(str(product_data["price"])),
                         "compare_at_price": Decimal(
                             str(product_data.get("compare_at_price", 0)),
@@ -1183,6 +1219,69 @@ class Command(BaseCommand):
                         "updated_by": self.user,
                     },
                 )
+
+    def _create_product_reviews(self, product: Product):
+        """Create sample reviews for a product."""
+        review_count = random.randint(0, 15)
+        if review_count == 0:
+            return
+
+        review_templates = {
+            "titles": [
+                "Amazing!",
+                "Great product",
+                "Not bad",
+                "Could be better",
+                "Excellent value",
+                "Works as expected",
+            ],
+            "comments": [
+                "I'm really impressed with the quality. Highly recommended.",
+                "This was exactly what I was looking for. Five stars!",
+                "It's a good product for the price, but I've seen better.",
+                "The build quality is a bit lacking, but it does the job.",
+                "Shipping was fast and the item was well-packaged. Happy with my purchase.",
+                "I've been using this for a few weeks now and it's holding up well.",
+            ],
+        }
+
+        for _ in range(review_count):  # noqa: F402
+            user = random.choice(self.sample_users)
+            # Use get_or_create to avoid errors if a user accidentally gets picked twice
+            ProductReview.objects.get_or_create(
+                product=product,
+                user=user,
+                defaults={
+                    "rating": random.randint(1, 5),
+                    "title": random.choice(review_templates["titles"]),
+                    "comment": random.choice(review_templates["comments"]),
+                },
+            )
+
+    def _create_single_product_with_extras(
+        self,
+        category,
+        template,
+        index,
+        with_images,
+        with_specs,
+    ):
+        """Create a single product with optional images, specifications, and reviews."""
+        product = self._create_single_product(template, category, index)
+        if not product:
+            return False
+
+        if with_images:
+            self._create_product_images(product)
+
+        if with_specs:
+            category_key = self._get_category_key(category)
+            self._create_product_specifications(product, category_key)
+
+        # ADD THIS LINE: Call the new review creation method
+        self._create_product_reviews(product)
+
+        return True
 
 
 # Example usage documentation

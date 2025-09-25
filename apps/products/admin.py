@@ -12,14 +12,9 @@ from typing import ClassVar
 from django.contrib import admin
 from django.utils.html import format_html
 
-from apps.products.models import (
-    Category,
-    PriceHistory,
-    Product,
-    ProductImage,
-    ProductReview,
-    ProductSpecification,
-)
+from apps.products.models import (Category, PriceHistory, Product,
+                                  ProductImage, ProductReview,
+                                  ProductSpecification)
 
 
 @admin.register(Category)
@@ -183,9 +178,14 @@ class ProductAdmin(admin.ModelAdmin):
         "name",
         "sku",
         "category",
-        "price_display",
-        "stock_display",
-        "status_display",
+        "price_display",  # Shows price + discount
+        "cost_price",  # Raw cost price
+        "profit_margin_display",  # Profit percentage
+        "discount_display",  # Discount percentage
+        "stock_display",  # Stock with colors
+        "is_in_stock",  # Boolean stock status
+        "is_active",
+        "status_display",  # Combined status
         "is_featured",
         "average_rating",
         "review_count",
@@ -341,15 +341,31 @@ class ProductAdmin(admin.ModelAdmin):
 
     def price_display(self, obj):
         """Display price with discount information."""
-        price_html = f"${obj.price}"
+        price_html = f"${obj.price.amount}"
 
-        if obj.compare_at_price and obj.compare_at_price > obj.price:
+        if obj.compare_at_price and obj.compare_at_price.amount > obj.price.amount:
             discount = obj.discount_percentage
-            price_html += f" <small style='color: red;'>({discount}% off from ${obj.compare_at_price})</small>"
+            price_html += f" <small style='color: red;'>({discount}% off from ${obj.compare_at_price.amount})</small>"
 
         return format_html(price_html)
 
     price_display.short_description = "Price"
+
+    def profit_margin_display(self, obj):
+        margin = obj.profit_margin
+        if margin is not None:
+            return f"{margin:.2f}%"
+        return "N/A"
+
+    profit_margin_display.short_description = "Profit Margin"
+
+    def discount_display(self, obj):
+        discount = obj.discount_percentage
+        if discount:
+            return f"{discount:.2f}%"
+        return "N/A"
+
+    discount_display.short_description = "Discount"
 
     def stock_display(self, obj):
         """Display stock information with status indicators."""

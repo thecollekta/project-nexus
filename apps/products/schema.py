@@ -99,6 +99,11 @@ class ProductType(DjangoObjectType):
     discount_percentage = graphene.Float()
     is_in_stock = graphene.Boolean()
     is_low_stock = graphene.Boolean()
+    # Custom fields for amount and currency
+    price_amount = graphene.Float()
+    compare_at_price_amount = graphene.Float()
+    cost_price_amount = graphene.Float()
+    currency = graphene.String()
 
     def resolve_images(self, info):
         return self.images.all().order_by("sort_order")
@@ -106,10 +111,26 @@ class ProductType(DjangoObjectType):
     def resolve_specifications(self, info):
         return self.specifications.all().order_by("sort_order")
 
+    def resolve_price_amount(self, info):
+        return float(self.price.amount) if self.price else None
+
+    def resolve_compare_at_price_amount(self, info):
+        return float(self.compare_at_price.amount) if self.compare_at_price else None
+
+    def resolve_cost_price_amount(self, info):
+        return float(self.cost_price.amount) if self.cost_price else None
+
+    def resolve_currency(self, info):
+        return str(self.price.currency) if self.price else "GHS"
+
     def resolve_discount_percentage(self, info):
-        if self.compare_at_price and self.compare_at_price > self.price:
+        if self.compare_at_price and self.compare_at_price.amount > self.price.amount:
             return round(
-                ((self.compare_at_price - self.price) / self.compare_at_price) * 100,
+                (
+                    (self.compare_at_price.amount - self.price.amount)
+                    / self.compare_at_price.amount
+                )
+                * 100,
                 2,
             )
         return 0
@@ -256,10 +277,10 @@ class Query(graphene.ObjectType):
             )
 
         if min_price is not None:
-            queryset = queryset.filter(price__gte=min_price)
+            queryset = queryset.filter(price__amount__gte=min_price)
 
         if max_price is not None:
-            queryset = queryset.filter(price__lte=max_price)
+            queryset = queryset.filter(price__amount__lte=max_price)
 
         # Handle sorting
         if sort_order.lower() not in ["asc", "desc"]:

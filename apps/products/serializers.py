@@ -10,21 +10,14 @@ with proper validation, security, and performance optimization.
 from decimal import Decimal
 from typing import Any, ClassVar
 
+from django.conf import settings
 from django.utils.text import slugify
 from rest_framework import serializers
 
-from apps.core.serializers import (
-    BaseModelSerializer,
-    SanitizedCharField,
-    SanitizedTextField,
-)
-from apps.products.models import (
-    Category,
-    Product,
-    ProductImage,
-    ProductReview,
-    ProductSpecification,
-)
+from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
+                                   SanitizedTextField)
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductReview, ProductSpecification)
 
 
 class CategoryListSerializer(BaseModelSerializer):
@@ -302,6 +295,8 @@ class ProductListSerializer(BaseModelSerializer):
         max_digits=3, decimal_places=2, read_only=True
     )
     review_count = serializers.IntegerField(read_only=True)
+    price = serializers.SerializerMethodField()
+    compare_at_price = serializers.SerializerMethodField()
 
     class Meta(BaseModelSerializer.Meta):
         model = Product
@@ -331,6 +326,27 @@ class ProductListSerializer(BaseModelSerializer):
         """Get count of product images."""
         return obj.images.filter(is_active=True).count()
 
+    def get_price(self, obj):
+        return {"amount": str(obj.price.amount), "currency": str(obj.price.currency)}
+
+    def get_compare_at_price(self, obj):
+        if obj.compare_at_price:
+            return {
+                "amount": str(obj.compare_at_price.amount),
+                "currency": str(obj.compare_at_price.currency),
+            }
+        return None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Add price-related fields from PriceMixin
+        representation["price_with_currency"] = instance.price_with_currency
+        representation["discount_percentage"] = instance.discount_percentage
+        representation["discount_amount"] = (
+            str(instance.discount_amount) if instance.discount_amount else None
+        )
+        return representation
+
 
 class ProductDetailSerializer(BaseModelSerializer):
     """
@@ -357,6 +373,9 @@ class ProductDetailSerializer(BaseModelSerializer):
         max_digits=3, decimal_places=2, read_only=True
     )
     review_count = serializers.IntegerField(read_only=True)
+
+    # Pricing
+    cost_price = serializers.SerializerMethodField()
 
     class Meta(BaseModelSerializer.Meta):
         model = Product
@@ -400,6 +419,14 @@ class ProductDetailSerializer(BaseModelSerializer):
             "reviews",
         ]
 
+    def get_cost_price(self, obj):
+        if obj.cost_price:
+            return {
+                "amount": str(obj.cost_price.amount),
+                "currency": str(obj.cost_price.currency),
+            }
+        return None
+
     def get_category_breadcrumb(self, obj: Product) -> list[dict]:
         """Generate category breadcrumb for the product."""
         if not obj.category:
@@ -427,6 +454,38 @@ class ProductDetailSerializer(BaseModelSerializer):
         )
 
         return breadcrumb
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        # Profit-related fields
+        representation["profit_margin"] = (
+            float(instance.profit_margin) if instance.profit_margin else None
+        )
+        representation["cost_price_with_currency"] = (
+            f"{instance.cost_price.currency} {instance.cost_price.amount:.2f}"
+            if instance.cost_price
+            else None
+        )
+        # Currency conversion if requested
+        request = self.context.get("request")
+        if request and "convert_to" in request.query_params:
+            target_currency = request.query_params["convert_to"].upper()
+            if target_currency in dict(settings.CURRENCY_CHOICES).keys():
+                converted = instance.convert_currency(target_currency)
+                if converted:
+                    representation["converted_price"] = {
+                        "amount": str(converted["amount"]),
+                        "currency": converted["currency"],
+                        "conversion_rate": str(converted.get("conversion_rate", 1)),
+                        "original_amount": str(
+                            converted.get("original_amount", instance.price.amount)
+                        ),
+                        "original_currency": converted.get(
+                            "original_currency", instance.price.currency
+                        ),
+                    }
+        return representation
 
 
 class ProductCreateUpdateSerializer(BaseModelSerializer):
@@ -525,13 +584,18 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
 
     def validate_price(self, value: Decimal) -> Decimal:
         """Validate product price."""
-        if value <= 0:
+        if value.amount <= 0:
             raise serializers.ValidationError(self.ERROR_PRICE_ZERO)
+
+        # Check if price is unusually high
+        if value.amount > self.PRICE_REVIEW_THRESHOLD:
+            self.price_requires_review = True
+
         return value
 
     def validate_compare_at_price(self, value: Decimal | None) -> Decimal | None:
         """Validate compare at price."""
-        if value is not None and value <= 0:
+        if value is not None and value.amount <= 0:
             raise serializers.ValidationError(self.ERROR_COMPARE_PRICE_ZERO)
         return value
 
@@ -599,7 +663,7 @@ class ProductCreateUpdateSerializer(BaseModelSerializer):
 
         compare_at_price = attrs.get("compare_at_price")
 
-        if compare_at_price and price and compare_at_price <= price:
+        if compare_at_price and price and compare_at_price.amount <= price:
             raise serializers.ValidationError(
                 {
                     "compare_at_price": "Compare at price must be higher than the regular price.",
@@ -804,6 +868,18 @@ class ProductPricingSerializer(BaseModelSerializer):
             )
 
         return attrs
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Convert Money objects to dicts
+        for field in ["price", "compare_at_price", "cost_price"]:
+            if field in representation and representation[field]:
+                money = getattr(instance, field)
+                representation[field] = {
+                    "amount": str(money.amount),
+                    "currency": str(money.currency),
+                }
+        return representation
 
 
 # Serializer selector utility

@@ -7,50 +7,43 @@ Provides comprehensive API endpoints for products, categories, and related model
 with proper filtering, search, and pagination capabilities.
 """
 
-from contextlib import suppress
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import ClassVar
 
 import structlog
-from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
 from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import (
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-    extend_schema_view,
-)
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
+                                   extend_schema, extend_schema_view)
 from rest_framework import filters, permissions, serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
-from apps.core.pagination import LargeResultsSetPagination, StandardResultsSetPagination
+from apps.core.pagination import (LargeResultsSetPagination,
+                                  StandardResultsSetPagination)
 from apps.core.views import BaseReadOnlyViewSet, BaseViewSet
 from apps.products.filters import CategoryFilter, ProductFilter
-from apps.products.models import (
-    Category,
-    Product,
-    ProductImage,
-    ProductReview,
-    ProductSpecification,
-)
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductReview, ProductSpecification)
 from apps.products.permissions import IsOwnerOrReadOnly
-from apps.products.serializers import (
-    CategoryDetailSerializer,
-    CategoryListSerializer,
-    CategorySerializerSelector,
-    ProductDetailSerializer,
-    ProductImageSerializer,
-    ProductInventorySerializer,
-    ProductListSerializer,
-    ProductPricingSerializer,
-    ProductReviewSerializer,
-    ProductSerializerSelector,
-    ProductSpecificationSerializer,
-)
+from apps.products.serializers import (CategoryDetailSerializer,
+                                       CategoryListSerializer,
+                                       CategorySerializerSelector,
+                                       ProductCreateUpdateSerializer,
+                                       ProductDetailSerializer,
+                                       ProductImageSerializer,
+                                       ProductInventorySerializer,
+                                       ProductListSerializer,
+                                       ProductPricingSerializer,
+                                       ProductReviewSerializer,
+                                       ProductSerializerSelector,
+                                       ProductSpecificationSerializer)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -374,76 +367,76 @@ class CategoryViewSet(BaseViewSet):
         return Response(serializer.data)
 
 
-@extend_schema_view(
-    list=extend_schema(
-        summary="List products",
-        description="Retrieve a list of products with advanced filtering and search capabilities.",
-        parameters=[
-            OpenApiParameter(
-                name="category",
-                description="Filter by category ID",
-                required=False,
-                type=str,
-            ),
-            OpenApiParameter(
-                name="min_price",
-                description="Minimum price filter",
-                required=False,
-                type=float,
-            ),
-            OpenApiParameter(
-                name="max_price",
-                description="Maximum price filter",
-                required=False,
-                type=float,
-            ),
-            OpenApiParameter(
-                name="in_stock",
-                description="Filter by stock availability",
-                required=False,
-                type=bool,
-            ),
-            OpenApiParameter(
-                name="is_featured",
-                description="Filter by featured status",
-                required=False,
-                type=bool,
-            ),
-            OpenApiParameter(
-                name="search",
-                description="Search in product name, description, and SKU",
-                required=False,
-                type=str,
-            ),
-        ],
-        tags=["Products"],
-    ),
-    retrieve=extend_schema(
-        summary="Get product details",
-        description="Retrieve detailed information about a specific product including images and specifications.",
-        tags=["Products"],
-    ),
-    create=extend_schema(
-        summary="Create product",
-        description="Create a new product with images and specifications.",
-        tags=["Products"],
-    ),
-    update=extend_schema(
-        summary="Update product",
-        description="Update an existing product with all related data.",
-        tags=["Products"],
-    ),
-    partial_update=extend_schema(
-        summary="Partial update product",
-        description="Partially update an existing product.",
-        tags=["Products"],
-    ),
-    destroy=extend_schema(
-        summary="Delete product",
-        description="Soft delete a product.",
-        tags=["Products"],
-    ),
-)
+# @extend_schema_view(
+#     list=extend_schema(
+#         summary="List products",
+#         description="Retrieve a list of products with advanced filtering and search capabilities.",
+#         parameters=[
+#             OpenApiParameter(
+#                 name="category",
+#                 description="Filter by category ID",
+#                 required=False,
+#                 type=str,
+#             ),
+#             OpenApiParameter(
+#                 name="min_price",
+#                 description="Minimum price filter",
+#                 required=False,
+#                 type=float,
+#             ),
+#             OpenApiParameter(
+#                 name="max_price",
+#                 description="Maximum price filter",
+#                 required=False,
+#                 type=float,
+#             ),
+#             OpenApiParameter(
+#                 name="in_stock",
+#                 description="Filter by stock availability",
+#                 required=False,
+#                 type=bool,
+#             ),
+#             OpenApiParameter(
+#                 name="is_featured",
+#                 description="Filter by featured status",
+#                 required=False,
+#                 type=bool,
+#             ),
+#             OpenApiParameter(
+#                 name="search",
+#                 description="Search in product name, description, and SKU",
+#                 required=False,
+#                 type=str,
+#             ),
+#         ],
+#         tags=["Products"],
+#     ),
+#     retrieve=extend_schema(
+#         summary="Get product details",
+#         description="Retrieve detailed information about a specific product including images and specifications.",
+#         tags=["Products"],
+#     ),
+#     create=extend_schema(
+#         summary="Create product",
+#         description="Create a new product with images and specifications.",
+#         tags=["Products"],
+#     ),
+#     update=extend_schema(
+#         summary="Update product",
+#         description="Update an existing product with all related data.",
+#         tags=["Products"],
+#     ),
+#     partial_update=extend_schema(
+#         summary="Partial update product",
+#         description="Partially update an existing product.",
+#         tags=["Products"],
+#     ),
+#     destroy=extend_schema(
+#         summary="Delete product",
+#         description="Soft delete a product.",
+#         tags=["Products"],
+#     ),
+# )
 class ProductViewSet(BaseViewSet):
     """
     ViewSet for managing products.
@@ -518,9 +511,166 @@ class ProductViewSet(BaseViewSet):
         return queryset
 
     @extend_schema(
-        summary="Get featured products",
-        description="Retrieve all featured products.",
+        summary="List products",
+        description="Retrieve a paginated list of products with advanced filtering and search capabilities.",
+        parameters=[
+            OpenApiParameter(
+                name="category",
+                description="Filter by category ID",
+                required=False,
+                type=OpenApiTypes.UUID,
+            ),
+            OpenApiParameter(
+                name="is_featured",
+                description="Filter by featured status",
+                required=False,
+                type=OpenApiTypes.BOOL,
+            ),
+            OpenApiParameter(
+                name="in_stock",
+                description="Filter by stock availability",
+                required=False,
+                type=OpenApiTypes.BOOL,
+            ),
+            OpenApiParameter(
+                name="min_price",
+                description="Minimum price filter",
+                required=False,
+                type=OpenApiTypes.FLOAT,
+            ),
+            OpenApiParameter(
+                name="max_price",
+                description="Maximum price filter",
+                required=False,
+                type=OpenApiTypes.FLOAT,
+            ),
+            OpenApiParameter(
+                name="search",
+                description="Search in product name, description, and SKU",
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+            OpenApiParameter(
+                name="ordering",
+                description="Which field to use when ordering the results",
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+        ],
         responses={200: ProductListSerializer(many=True)},
+        tags=["Products"],
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve product",
+        description="Get detailed information about a specific product including images, specifications, and reviews.",
+        responses={
+            200: ProductDetailSerializer,
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products"],
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Create product",
+        description="Create a new product with images and specifications.",
+        request=ProductCreateUpdateSerializer,
+        responses={
+            201: ProductDetailSerializer,
+            400: OpenApiResponse(description="Invalid input data"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Products"],
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Update product",
+        description="Update an existing product with all related data.",
+        request=ProductCreateUpdateSerializer,
+        responses={
+            200: ProductDetailSerializer,
+            400: OpenApiResponse(description="Invalid input data"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products"],
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Partial update product",
+        description="Partially update an existing product.",
+        request=ProductCreateUpdateSerializer,
+        responses={
+            200: ProductDetailSerializer,
+            400: OpenApiResponse(description="Invalid input data"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products"],
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Delete product",
+        description="Soft delete a product (mark as inactive).",
+        responses={
+            204: OpenApiResponse(description="Product deleted successfully"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products"],
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Get featured products",
+        description="Retrieve all featured products with pagination and filtering.",
+        parameters=[
+            OpenApiParameter(
+                name="category",
+                description="Filter by category ID",
+                required=False,
+                type=OpenApiTypes.UUID,
+            ),
+            OpenApiParameter(
+                name="in_stock",
+                description="Filter by stock availability",
+                required=False,
+                type=OpenApiTypes.BOOL,
+            ),
+            OpenApiParameter(
+                name="min_price",
+                description="Minimum price filter",
+                required=False,
+                type=OpenApiTypes.FLOAT,
+            ),
+            OpenApiParameter(
+                name="max_price",
+                description="Maximum price filter",
+                required=False,
+                type=OpenApiTypes.FLOAT,
+            ),
+            OpenApiParameter(
+                name="search",
+                description="Search in product name, description, and SKU",
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+        ],
+        responses={
+            200: ProductListSerializer(many=True),
+            400: OpenApiResponse(description="Invalid filter parameters"),
+        },
         tags=["Products"],
     )
     @action(detail=False, methods=["get"])
@@ -547,17 +697,44 @@ class ProductViewSet(BaseViewSet):
 
     @extend_schema(
         summary="Get low stock products",
-        description="Retrieve all products with low stock levels.",
-        responses={200: ProductListSerializer(many=True)},
-        tags=["Products"],
+        description="Retrieve products with low stock levels (requires authentication).",
+        parameters=[
+            OpenApiParameter(
+                name="threshold",
+                description="Custom low stock threshold (overrides product's default)",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name="category",
+                description="Filter by category ID",
+                required=False,
+                type=OpenApiTypes.UUID,
+            ),
+        ],
+        responses={
+            200: ProductListSerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Products", "Inventory"],
     )
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["get"])
     def low_stock(self, request):
         """Get all products with low stock."""
         queryset = self.get_queryset().filter(
             track_inventory=True,
-            stock_quantity__lte=models.F("low_stock_threshold"),  # noqa: F821
+            stock_quantity__lte=models.F("low_stock_threshold"),
         )
+
+        # Apply custom threshold if provided
+        threshold = request.query_params.get("threshold")
+        if threshold:
+            try:
+                threshold_value = int(threshold)
+                queryset = queryset.filter(stock_quantity__lte=threshold_value)
+            except ValueError:
+                pass  # Use default threshold if invalid
+
         queryset = self.filter_queryset(queryset)
 
         page = self.paginate_queryset(queryset)
@@ -580,8 +757,13 @@ class ProductViewSet(BaseViewSet):
         summary="Update product inventory",
         description="Update stock quantity and inventory settings for a product.",
         request=ProductInventorySerializer,
-        responses={200: ProductInventorySerializer},
-        tags=["Products"],
+        responses={
+            200: ProductInventorySerializer,
+            400: OpenApiResponse(description="Invalid input data"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products", "Inventory"],
     )
     @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
     def inventory(self, request, pk=None):
@@ -613,12 +795,26 @@ class ProductViewSet(BaseViewSet):
 
     @extend_schema(
         summary="Update product pricing",
-        description="Update pricing information for a product.",
+        description="Update pricing information for a product including price, compare price, and cost price.",
         request=ProductPricingSerializer,
-        responses={200: ProductPricingSerializer},
-        tags=["Products"],
+        responses={
+            200: ProductPricingSerializer,
+            400: OpenApiResponse(description="Invalid pricing data"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Products", "Pricing"],
     )
-    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=True,
+        methods=["patch"],
+        permission_classes=[IsAuthenticated],
+    )
+    @action(
+        detail=True,
+        methods=["patch"],
+        permission_classes=[IsAuthenticated],
+    )
     def pricing(self, request, pk=None):
         """Update product pricing."""
         product = self.get_object()
@@ -650,20 +846,18 @@ class ProductViewSet(BaseViewSet):
         summary="Adjust product stock",
         description="Increase or decrease product stock by a specific amount.",
         request={
-            "application/json": {
-                "type": "object",
-                "properties": {
-                    "quantity": {
-                        "type": "integer",
-                        "description": "Quantity to adjust (positive to increase, negative to decrease)",
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "Reason for the stock adjustment",
-                    },
+            "type": "object",
+            "properties": {
+                "quantity": {
+                    "type": "integer",
+                    "description": "Quantity to adjust (positive to increase, negative to decrease)",
                 },
-                "required": ["quantity"],
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for the stock adjustment",
+                },
             },
+            "required": ["quantity"],
         },
         responses={
             200: {
@@ -675,8 +869,13 @@ class ProductViewSet(BaseViewSet):
                     "adjustment": {"type": "integer"},
                 },
             },
+            400: OpenApiResponse(
+                description="Invalid quantity or business rule violation"
+            ),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
         },
-        tags=["Products"],
+        tags=["Products", "Inventory"],
     )
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def adjust_stock(self, request, pk=None):
@@ -684,11 +883,16 @@ class ProductViewSet(BaseViewSet):
         product = self.get_object()
 
         try:
-            quantity = int(request.data.get("quantity", 0))
+            quantity_str = request.data.get("quantity", "0")
+            # Handle both integer and decimal strings
+            quantity = int(Decimal(quantity_str))
             reason = request.data.get("reason", "Manual adjustment")
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidOperation) as e:
+            logger.error(
+                f"Invalid quantity provided: {request.data.get('quantity')}, error: {e}"
+            )
             return Response(
-                {"error": "Invalid quantity provided"},
+                {"error": "Invalid quantity provided. Must be a valid number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -741,29 +945,46 @@ class ProductViewSet(BaseViewSet):
                 name="q",
                 description="Search query",
                 required=True,
-                type=str,
+                type=OpenApiTypes.STR,
             ),
             OpenApiParameter(
                 name="category",
                 description="Category ID to search within",
                 required=False,
-                type=str,
+                type=OpenApiTypes.UUID,
             ),
             OpenApiParameter(
                 name="min_price",
                 description="Minimum price",
                 required=False,
-                type=float,
+                type=OpenApiTypes.FLOAT,
             ),
             OpenApiParameter(
                 name="max_price",
                 description="Maximum price",
                 required=False,
-                type=float,
+                type=OpenApiTypes.FLOAT,
+            ),
+            OpenApiParameter(
+                name="in_stock",
+                description="Filter by stock availability",
+                required=False,
+                type=OpenApiTypes.BOOL,
+            ),
+            OpenApiParameter(
+                name="is_featured",
+                description="Filter by featured status",
+                required=False,
+                type=OpenApiTypes.BOOL,
             ),
         ],
-        responses={200: ProductListSerializer(many=True)},
-        tags=["Products"],
+        responses={
+            200: ProductListSerializer(many=True),
+            400: OpenApiResponse(
+                description="Search query is required or invalid parameters"
+            ),
+        },
+        tags=["Products", "Search"],
     )
     @action(detail=False, methods=["get"])
     def search(self, request):
@@ -790,18 +1011,38 @@ class ProductViewSet(BaseViewSet):
         )
         queryset = queryset.filter(search_query).distinct()
 
-        # Apply additional filters
+        # Apply additional filters with proper error handling
+
         category_id = request.query_params.get("category")
-        with suppress(ValueError):
-            queryset = queryset.filter(category_id=category_id)
+        if category_id:
+            try:
+                queryset = queryset.filter(category_id=category_id)
+            except (ValueError, ValidationError):
+                logger.warning(f"Invalid category ID: {category_id}")
 
         min_price = request.query_params.get("min_price")
-        with suppress((ValueError, TypeError)):
-            queryset = queryset.filter(price__gte=Decimal(min_price))
+        if min_price:
+            try:
+                min_price_decimal = Decimal(min_price)
+                queryset = queryset.filter(price__amount__gte=min_price_decimal)
+            except (InvalidOperation, ValueError, TypeError) as e:
+                logger.warning(f"Invalid min_price parameter: {min_price}, error: {e}")
+                return Response(
+                    {"error": "Invalid min_price parameter. Must be a valid number."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         max_price = request.query_params.get("max_price")
-        with suppress((ValueError, TypeError)):
-            queryset = queryset.filter(price__lte=Decimal(max_price))
+        if max_price:
+            try:
+                max_price_decimal = Decimal(max_price)
+                queryset = queryset.filter(price__amount__lte=max_price_decimal)
+            except (InvalidOperation, ValueError, TypeError) as e:
+                logger.warning(f"Invalid max_price parameter: {max_price}, error: {e}")
+                return Response(
+                    {"error": "Invalid max_price parameter. Must be a valid number."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # Apply ordering
         queryset = queryset.order_by("-is_featured", "name")
@@ -878,8 +1119,13 @@ class ProductImageViewSet(BaseViewSet):
                 "type": "object",
                 "properties": {
                     "message": {"type": "string"},
+                    "image_id": {"type": "integer"},
+                    "product_id": {"type": "integer"},
                 },
             },
+            400: OpenApiResponse(description="Invalid request"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Image not found"),
         },
         tags=["Product Images"],
     )
@@ -907,7 +1153,13 @@ class ProductImageViewSet(BaseViewSet):
                 user_id=request.user.id,
             )
 
-        return Response({"message": "Image set as primary successfully"})
+        return Response(
+            {
+                "message": "Image set as primary successfully",
+                "image_id": image.id,
+                "product_id": image.product.id,
+            }
+        )
 
 
 @extend_schema_view(
@@ -1163,6 +1415,89 @@ class PublicProductViewSet(BaseReadOnlyViewSet):
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List product reviews",
+        description="Retrieve a paginated list of product reviews with optional filtering by rating.",
+        parameters=[
+            OpenApiParameter(
+                name="rating",
+                description="Filter by rating (1-5)",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name="product",
+                description="Filter reviews by product ID",
+                required=False,
+                type=OpenApiTypes.INT,
+            ),
+        ],
+        responses={
+            200: ProductReviewSerializer(many=True),
+            400: OpenApiResponse(description="Invalid filter parameters"),
+        },
+        tags=["Product Reviews"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve product review",
+        description="Get detailed information about a specific product review.",
+        responses={
+            200: ProductReviewSerializer,
+            404: OpenApiResponse(description="Review not found"),
+        },
+        tags=["Product Reviews"],
+    ),
+    create=extend_schema(
+        summary="Create product review",
+        description="Create a new review for a product. The product ID is taken from the URL.",
+        request=ProductReviewSerializer,
+        responses={
+            201: ProductReviewSerializer,
+            400: OpenApiResponse(description="Invalid input or duplicate review"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
+        tags=["Product Reviews"],
+    ),
+    update=extend_schema(
+        summary="Update product review",
+        description="Update an existing product review (only by owner).",
+        request=ProductReviewSerializer,
+        responses={
+            200: ProductReviewSerializer,
+            400: OpenApiResponse(description="Invalid input"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not the review owner"),
+            404: OpenApiResponse(description="Review not found"),
+        },
+        tags=["Product Reviews"],
+    ),
+    partial_update=extend_schema(
+        summary="Partial update product review",
+        description="Partially update an existing product review (only by owner).",
+        request=ProductReviewSerializer,
+        responses={
+            200: ProductReviewSerializer,
+            400: OpenApiResponse(description="Invalid input"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not the review owner"),
+            404: OpenApiResponse(description="Review not found"),
+        },
+        tags=["Product Reviews"],
+    ),
+    destroy=extend_schema(
+        summary="Delete product review",
+        description="Delete a product review (only by owner or admin).",
+        responses={
+            204: OpenApiResponse(description="Review deleted successfully"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not the review owner or admin"),
+            404: OpenApiResponse(description="Review not found"),
+        },
+        tags=["Product Reviews"],
+    ),
+)
 class ProductReviewViewSet(BaseViewSet):
     """
     ViewSet for managing product reviews.

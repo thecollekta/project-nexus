@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.translation import gettext_lazy as _
+from djmoney.models.fields import CurrencyField
 
 from apps.accounts.managers import ActiveManager, UserManager
 from apps.core.models import AllObjectsManager, AuditStampedModelBase
@@ -239,6 +240,9 @@ class UserProfile(AuditStampedModelBase):
     """
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    preferred_currency = CurrencyField(
+        default="GHS", help_text=_("User's preferred currency")
+    )
 
     # Profile image
     avatar = models.ImageField(

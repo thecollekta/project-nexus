@@ -14,13 +14,8 @@ from django.dispatch import receiver
 from django.utils.text import slugify
 
 from apps.core.middleware import get_current_user
-from apps.products.models import (
-    Category,
-    PriceHistory,
-    Product,
-    ProductImage,
-    ProductReview,
-)
+from apps.products.models import (Category, PriceHistory, Product,
+                                  ProductImage, ProductReview)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -82,21 +77,27 @@ def product_pre_save(sender, instance, **kwargs):
     """
     current_user = get_current_user()
 
-    # Track price change if the product already exists
+    # Track price change if the product already exists and is being updated
     if instance.pk:
         try:
+            # First check if the product actually exists in the database
+            # This prevents the DoesNotExist error during object creation
             old_instance = Product.objects.get(pk=instance.pk)
             if old_instance.price != instance.price:
                 PriceHistory.objects.create(
                     product=instance,
                     old_price=old_instance.price,
                     new_price=instance.price,
-                    changed_by=current_user
-                    if current_user and current_user.is_authenticated
-                    else None,
+                    changed_by=(
+                        current_user
+                        if current_user and current_user.is_authenticated
+                        else None
+                    ),
                 )
         except Product.DoesNotExist:
-            pass  # Object is new, so no history yet
+            # This handles the case where pk exists but object isn't in DB yet
+            # This happens during object creation when Django assigns pk before saving
+            pass
 
     # Auto-generate slug if not provided
     if not instance.slug and instance.name:
@@ -104,10 +105,17 @@ def product_pre_save(sender, instance, **kwargs):
         slug = base_slug
         counter = 1
 
-        # Ensure slug uniqueness
-        while Product.all_objects.exclude(id=instance.id).filter(slug=slug).exists():
+        # Ensure slug uniqueness - exclude current instance if it has an id
+        queryset = Product.all_objects.filter(slug=slug)
+        if instance.id:
+            queryset = queryset.exclude(id=instance.id)
+
+        while queryset.exists():
             slug = f"{base_slug}-{counter}"
             counter += 1
+            queryset = Product.all_objects.filter(slug=slug)
+            if instance.id:
+                queryset = queryset.exclude(id=instance.id)
 
         instance.slug = slug
 
