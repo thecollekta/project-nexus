@@ -60,15 +60,15 @@
             {% for item in order.items.all %}
             <div class="item">
                 <strong>{{ item.product_name }}</strong><br>
-                Quantity: {{ item.quantity }} × ${{ item.price }} = ${{ item.total_price }}
+                Quantity: {{ item.quantity }} × ¢{{ item.price }} = ¢{{ item.total_price }}
             </div>
             {% endfor %}
 
             <div class="item total">
-                <p>Subtotal: ${{ order.subtotal }}</p>
-                <p>Tax: ${{ order.tax_amount }}</p>
-                <p>Shipping: ${{ order.shipping_cost }}</p>
-                <p>Total: ${{ order.total_amount }}</p>
+                <p>Subtotal: ¢{{ order.subtotal }}</p>
+                <p>Tax: ¢{{ order.tax_amount }}</p>
+                <p>Shipping: ¢{{ order.shipping_cost }}</p>
+                <p>Total: ¢{{ order.total_amount }}</p>
             </div>
         </div>
 

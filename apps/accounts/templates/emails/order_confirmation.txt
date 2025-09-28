@@ -3,13 +3,13 @@ Thank You for Your Order!
 Order Number: {{ order.order_number }}
 
 Order Summary:
-{% for item in order.items.all %}{{ item.product_name }} - Quantity: {{ item.quantity }} × ${{ item.price }} = ${{ item.total_price }}
+{% for item in order.items.all %}{{ item.product_name }} - Quantity: {{ item.quantity }} × ¢{{ item.price }} = ¢{{ item.total_price }}
 {% endfor %}
 
-Subtotal: ${{ order.subtotal }}
-Tax: ${{ order.tax_amount }}
-Shipping: ${{ order.shipping_cost }}
-Total: ${{ order.total_amount }}
+Subtotal: ¢{{ order.subtotal }}
+Tax: ¢{{ order.tax_amount }}
+Shipping: ¢{{ order.shipping_cost }}
+Total: ¢{{ order.total_amount }}
 
 Shipping Address:
 {{ order.get_full_shipping_address }}
