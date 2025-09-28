@@ -1,6 +1,6 @@
 # ALX E-commerce Backend
 
-A robust, scalable, and secure Django-based e-commerce backend with REST and GraphQL API support.
+A robust, scalable, and secure Django-based e-commerce backend with REST API support.
 
 ## Project Overview
 
@@ -12,11 +12,9 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
 - **Database**: [PostgreSQL](https://www.postgresql.org/) (via psycopg)
 - **API**:
   - [Django REST Framework](https://www.django-rest-framework.org/) with [SimpleJWT](https://github.com/jazzband/djangorestframework-simplejwt)
-  - [Graphene-Django](https://docs.graphene-python.org/projects/django/) for GraphQL API
 - **Async Tasks**: [Celery](https://docs.celeryq.dev/) with [Redis](https://redis.io/)
 - **Documentation**:
   - [DRF Spectacular](https://drf-spectacular.readthedocs.io/) (OpenAPI 3.0) for REST API
-  - Interactive GraphQL Playground
 - **Monitoring**: [Sentry SDK](https://docs.sentry.io/)
 - **Code Quality**: [Black](https://black.readthedocs.io/), [Ruff](https://beta.ruff.rs/), [mypy](http://mypy-lang.org/)
 
@@ -34,7 +32,6 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
   - [Project Structure](#project-structure)
   - [API Documentation](#api-documentation)
     - [REST API](#rest-api)
-    - [GraphQL API](#graphql-api)
     - [Authentication](#authentication)
     - [Available Endpoints](#available-endpoints)
       - [Authentication](#authentication-1)
@@ -81,7 +78,6 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
 
 - **Dual API Support**:
   - **RESTful API** with consistent response formats
-  - **GraphQL API** for flexible data querying
 - **Authentication**:
   - JWT Authentication with refresh tokens
   - Social authentication (OAuth2) (coming soon)
@@ -94,7 +90,6 @@ A high-performance **E-Commerce Backend API** built with Django and Django REST 
   - CORS and CSRF protection
 - **Documentation**:
   - Interactive Swagger/ReDoc for REST API
-  - GraphQL Playground with schema introspection
   - Detailed API reference in [docs](./docs/) directory
 
 ### Development Tools
@@ -123,7 +118,6 @@ project-nexus/
 │       ├── __init__.py
 │       ├── admin.py             # Admin site configurations
 │       ├── apps.py              # App config
-│       ├── graphql.py           # GraphQL utility
 │       ├── middleware.py        # Custom middleware
 │       ├── models.py            # Base models and managers
 │       ├── pagination.py        # Custom pagination classes
@@ -175,22 +169,9 @@ project-nexus/
   - `/schema/swagger-ui/`
   - `/schema/redoc/`
 
-### GraphQL API
-
-Access the GraphQL Playground at `/graphql/` for interactive queries and mutations.
-
-Key GraphQL Features:
-
-- Full CRUD operations for all resources
-- Real-time updates with subscriptions (coming soon)
-- Optimized queries with data loaders
-- Comprehensive error handling
-
-For detailed GraphQL documentation, see [GraphQL API Reference](./docs/api/graphql.md).
-
 ### Authentication
 
-Both REST and GraphQL APIs use JWT authentication. Include the token in the `Authorization` header:
+REST APIs use JWT authentication. Include the token in the `Authorization` header:
 
 ```http
 Authorization: Bearer your_access_token_here
@@ -227,53 +208,6 @@ Authorization: Bearer your_access_token_here
   - `GET /api/v1/accounts/me/` - Get current user profile
   - `PATCH /api/v1/accounts/me/` - Update profile
   - `POST /api/v1/accounts/change-password/` - Change password
-
-- **GraphQL**:
-  - **Authentication**
-
-    ```graphql
-    # Register a new user
-    mutation {
-      registerUser(
-      username: "kwame"
-      email: "<kwame.nkrumah@ghana.com>"
-      password: "Blackstar233."
-      passwordConfirm: "Blackstar233."
-      acceptTerms: true
-    ) {
-      ok
-      errors
-      user {
-        id
-        email
-        username
-      }
-    }
-
-    # Login
-
-    mutation {
-      login(email: "kwame.nkrumah@ghana.com", password: "Blackstar233.") {
-        ok
-        access
-        refresh
-        errors
-      }
-    }
-
-    # Refresh token
-
-    mutation {
-      refreshToken(refreshToken: "your-refresh-token") {
-        token
-        refreshToken
-        payload
-      }
-    }
-
-    ```
-
-For a complete list of available GraphQL queries and mutations, visit the GraphQL Playground at `/graphql/`. Read the full documentation in [GraphQL API Reference](./docs/api/graphql.md).
 
 ## Testing
 

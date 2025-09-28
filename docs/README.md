@@ -8,10 +8,8 @@ This directory contains comprehensive documentation for the E-commerce API, desi
   - `api/` - API reference documentation
     - [users.md](./api/users.md) - User management and authentication endpoints
     - [products.md](./api/products.md) - Product catalog and inventory management
-    - [graphql.md](./api/graphql.md) - GraphQL API reference and usage examples
   - `guides/` - How-to guides
     - [authentication.md](./guides/authentication.md) - Authentication and user management guide
-    - [products.md](./guides/products.md) - Product management guide
 
 ## Viewing the Documentation
 
@@ -28,19 +26,15 @@ To view the documentation locally:
    ```bash
    python manage.py runserver
    ```
+
 2. Access the documentation:
 
    - Swagger UI: [http://127.0.0.1:8000/schema/swagger-ui/](http://127.0.0.1:8000/schema/swagger-ui/)
    - ReDoc: [http://127.0.0.1:8000/schema/redoc/](http://127.0.0.1:8000/schema/redoc/)
-3. GraphQL Playground
-   Explore the GraphQL API at:
-
-   - [http://127.0.0.1:8000/graphql/](http://127.0.0.1:8000/graphql)
 
 ## Documentation Features
 
 - **REST API Documentation**: Complete reference for all REST endpoints
-- **GraphQL Documentation**: Comprehensive guide for GraphQL operations
 - **Authentication Guide**: Step-by-step authentication flow
 - **Code Examples**: Ready-to-use examples for all major operations
 - **Error Handling**: Detailed error responses and troubleshooting
