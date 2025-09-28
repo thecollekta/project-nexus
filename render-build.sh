@@ -28,8 +28,11 @@ python manage.py makemigrations --noinput || echo "No new migrations detected"
 python manage.py migrate --noinput
 
 # Load sample product data
-echo "--- Loading sample product data ---"
-python manage.py products_sample_data --user=admin --count=20 --with-images --with-specs --scenario=demo
+echo "--- Loading sample data ---"
+python manage.py products_sample_data --user=admin --count=50 --with-images --with-specs --scenario=demo
+
+# Load sample order data
+python manage.py orders_sample_data --count 50
 
 # Collect static files
 echo "--- Collecting static files ---"
