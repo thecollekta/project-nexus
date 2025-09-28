@@ -10,7 +10,9 @@ ENVIRONMENT = (env("ENVIRONMENT", default="development"),)  # noqa: F405 # type:
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Database - ensure it uses local PostgreSQL without SSL
-DATABASES["default"]["OPTIONS"]["sslmode"] = "disable"  # Force disable SSL  # noqa: F405
+DATABASES["default"]["OPTIONS"][  # Force disable SSL  # noqa: F405
+    "sslmode"
+] = "disable"
 
 # Session settings
 CSRF_USE_SESSIONS = False  # Use cookie-based CSRF

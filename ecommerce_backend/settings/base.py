@@ -72,7 +72,6 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env("DEBUG")
 
-# ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 # Determine allowed hosts based on environment
 if os.environ.get("RENDER"):
     # Production on Render
@@ -109,8 +108,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "drf_spectacular_sidecar",  # Required for production schema collection
     "rest_framework_nested",
-    "graphene_django",
-    "djmoney",
+    "debug_toolbar",
     "django_redis",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -121,6 +119,28 @@ INSTALLED_APPS = [
     "apps.products.apps.ProductsConfig",
     "apps.orders.apps.OrdersConfig",
 ]
+
+# Django Money settings
+INSTALLED_APPS += [
+    "djmoney",
+]
+
+CURRENCIES = ("GHS",)
+CURRENCY_CHOICES = [("GHS", "Ghana Cedi")]
+DEFAULT_CURRENCY = "GHS"
+
+# Format settings for Ghana Cedi
+DJMONEY_FORMATS = {
+    "GHS": {
+        "money_format": "GHS%(amt)s",
+        "decimal_separator": ".",
+        "thousand_separator": ",",
+    },
+}
+
+# Decimal handling settings
+DECIMAL_PLACES = 2
+MAX_DIGITS = 10
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # CORS Middleware
@@ -134,6 +154,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.gzip.GZipMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "ecommerce_backend.urls"
@@ -280,6 +301,27 @@ CSRF_COOKIE_NAME = "csrftoken"
 CSRF_HEADER_NAME = "HTTP_X_CSRFTOKEN"
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
+# Debug Toolbar settings
+if DEBUG:
+    import socket
+
+    hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+    INTERNAL_IPS = [ip[: ip.rfind(".")] + ".1" for ip in ips] + [
+        "127.0.0.1",
+        "10.0.2.2",
+    ]
+
+    # For Docker
+    import os
+
+    if os.environ.get("USE_DOCKER") == "yes":
+        import socket
+
+        hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+        INTERNAL_IPS += [ip[: ip.rfind(".")] + ".1" for ip in ips]
+
+# INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
+
 # Cache settings
 CACHES = {
     "default": {
@@ -406,7 +448,7 @@ SIMPLE_JWT = {
 # Swagger/OpenAPI Configuration
 SPECTACULAR_SETTINGS = {
     "TITLE": "ALX E-Commerce API",
-    "DESCRIPTION": "Comprehensive e-commerce backend API with REST and GraphQL support",
+    "DESCRIPTION": "Comprehensive e-commerce backend API with REST support",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SWAGGER_UI_SETTINGS": {
@@ -416,14 +458,6 @@ SPECTACULAR_SETTINGS = {
     },
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]",
-}
-
-# GraphQL Configuration
-GRAPHENE = {
-    "SCHEMA": "ecommerce_backend.schema.schema",
-    "MIDDLEWARE": [
-        "apps.core.middleware.PerformanceMiddleware",
-    ],
 }
 
 
@@ -497,6 +531,7 @@ LOGGING = {
 #     "level": "INFO",
 # }
 
+
 # # Configure structlog
 # structlog.configure(
 #     processors=[
@@ -514,12 +549,3 @@ LOGGING = {
 #     wrapper_class=structlog.stdlib.BoundLogger,
 #     cache_logger_on_first_use=True,
 # )
-
-# Currency Configuration
-CURRENCIES = ("GHS", "USD", "EUR", "GBP")  # Add more as needed
-CURRENCY_CHOICES = [("GHS", "Ghana Cedi"), ("USD", "US Dollar")]  # Add more as needed
-
-# django-money Configuration
-CURRENCY_DECIMAL_PLACES = 2
-CURRENCY_MAX_DIGITS = 10
-CURRENCY_DEFAULT = "GHS"

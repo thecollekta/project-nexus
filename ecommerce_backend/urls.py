@@ -22,10 +22,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
-from django.views.decorators.csrf import csrf_exempt
-from drf_spectacular.views import (SpectacularAPIView, SpectacularRedocView,
-                                   SpectacularSwaggerView)
-from graphene_django.views import GraphQLView
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 
 def health_check(request):
@@ -35,6 +36,7 @@ def health_check(request):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Health check endpoint
     path("health/", health_check, name="health-check"),
     # OpenAPI schema and docs
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
@@ -48,8 +50,7 @@ urlpatterns = [
         SpectacularRedocView.as_view(url_name="schema"),
         name="redoc",
     ),
-    # GraphQL documentation
-    path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
+    # REST API
     path(
         "api/v1/",
         include(
@@ -69,3 +70,4 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += [path("__debug__/", include("debug_toolbar.urls"))]

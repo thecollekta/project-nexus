@@ -35,7 +35,8 @@ CACHES = {
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
             "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD", default=None  # type: ignore
+                "REDIS_PASSWORD",
+                default=None,  # type: ignore
             ),  # noqa: F405 # type: ignore
             "CONNECTION_POOL_KWARGS": {"max_connections": 100},
         },
@@ -50,7 +51,8 @@ CACHES = {
             "SOCKET_TIMEOUT": 5,
             "IGNORE_EXCEPTIONS": True,
             "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD", default=None  # type: ignore
+                "REDIS_PASSWORD",
+                default=None,  # type: ignore
             ),  # noqa: F405 # type: ignore
         },
         "KEY_PREFIX": "ecommerce_sessions",
@@ -116,9 +118,6 @@ if ENABLE_METRICS:
     #     + MIDDLEWARE  # noqa: F405
     #     + ["django_prometheus.middleware.PrometheusAfterMiddleware"]
     # )
-
-# Custom settings
-INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
 
 
 # Admin URL
