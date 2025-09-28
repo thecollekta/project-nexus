@@ -5,6 +5,8 @@ from datetime import timedelta
 from django.db import models
 from django.utils import timezone
 
+from apps.orders.enums import OrderStatus, PaymentStatus
+
 
 class CartManager(models.Manager):
     """Custom manager for Cart model."""
@@ -72,42 +74,42 @@ class OrderManager(models.Manager):
     def pending(self):
         """Get pending orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.PENDING)
+        return self.get_queryset().filter(status=OrderStatus.PENDING)
 
     def confirmed(self):
         """Get confirmed orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.CONFIRMED)
+        return self.get_queryset().filter(status=OrderStatus.CONFIRMED)
 
     def processing(self):
         """Get processing orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.PROCESSING)
+        return self.get_queryset().filter(status=OrderStatus.PROCESSING)
 
     def shipped(self):
         """Get shipped orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.SHIPPED)
+        return self.get_queryset().filter(status=OrderStatus.SHIPPED)
 
     def delivered(self):
         """Get delivered orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.DELIVERED)
+        return self.get_queryset().filter(status=OrderStatus.DELIVERED)
 
     def cancelled(self):
         """Get cancelled orders."""
 
-        return self.get_queryset().filter(status=Order.OrderStatus.CANCELLED)
+        return self.get_queryset().filter(status=OrderStatus.CANCELLED)
 
     def paid(self):
         """Get paid orders."""
 
-        return self.get_queryset().filter(payment_status=Order.PaymentStatus.PAID)
+        return self.get_queryset().filter(payment_status=PaymentStatus.PAID)
 
     def unpaid(self):
         """Get unpaid orders."""
 
-        return self.get_queryset().filter(payment_status=Order.PaymentStatus.PENDING)
+        return self.get_queryset().filter(payment_status=PaymentStatus.PENDING)
 
     def recent(self, days=30):
         """Get orders from the last N days."""
@@ -122,6 +124,6 @@ class OrderManager(models.Manager):
         """Get orders that need to be shipped."""
 
         return self.get_queryset().filter(
-            status__in=[Order.OrderStatus.CONFIRMED, Order.OrderStatus.PROCESSING],
-            payment_status=Order.PaymentStatus.PAID,
+            status__in=[OrderStatus.CONFIRMED, OrderStatus.PROCESSING],
+            payment_status=PaymentStatus.PAID,
         )

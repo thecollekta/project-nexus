@@ -5,6 +5,7 @@ from typing import ClassVar
 import django_filters
 from django.db import models
 
+from apps.orders.enums import OrderStatus, PaymentStatus
 from apps.orders.models import Order
 
 
@@ -37,11 +38,11 @@ class OrderFilter(django_filters.FilterSet):
 
     # Status filters
     status = django_filters.ChoiceFilter(
-        choices=Order.OrderStatus.choices,
+        choices=OrderStatus.choices,
         help_text="Filter by order status",
     )
     payment_status = django_filters.ChoiceFilter(
-        choices=Order.PaymentStatus.choices,
+        choices=PaymentStatus.choices,
         help_text="Filter by payment status",
     )
 

@@ -11,6 +11,7 @@ from contextlib import suppress
 from decimal import Decimal
 from typing import ClassVar
 
+import structlog
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
@@ -18,10 +19,14 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from djmoney.models.fields import MoneyField
+from djmoney.money import Money
 
 from apps.core.models import AuditStampedModelBase
+from apps.core.utils import clean_price_value
+from apps.orders.enums import OrderStatus, PaymentStatus
 from apps.orders.managers import CartManager, OrderManager
-from apps.products.models import Product
+
+logger = structlog.get_logger(__name__)
 
 
 class Cart(AuditStampedModelBase):
@@ -115,37 +120,35 @@ class Cart(AuditStampedModelBase):
         self.item_count = totals["item_count"]
         self.save(update_fields=["total_amount", "item_count", "updated_at"])
 
-    def add_item(self, product, quantity: int = 1) -> "CartItem":
-        """Add item to cart or update quantity if exists."""
+    def add_item(self, product, quantity: int) -> "CartItem":
+        """
+        Add item to cart with proper price handling
 
-        if not isinstance(product, Product):
-            err_msg = "Product must be a Product instance"
-            raise ValueError(err_msg)
+        Args:
+            product: Product instance
+            quantity: Item quantity
+        """
 
-        if quantity <= 0:
-            err_msg = "Quantity must be positive"
-            raise ValueError(err_msg)
+        try:
+            # Clean the product price
+            price_decimal = clean_price_value(product.price)
+            price_money = Money(price_decimal, "GHS")
 
-        # Check stock availability
-        if product.stock_quantity < quantity:
-            err_msg = f"Insufficient stock. Available: {product.stock_quantity}"
-            raise ValueError(err_msg)
+            cart_item, created = self.items.get_or_create(
+                product=product,
+                defaults={"quantity": quantity, "price": price_money},
+            )
 
-        cart_item, created = self.items.get_or_create(
-            product=product,
-            defaults={"quantity": quantity, "price": product.price},
-        )
+            if not created:
+                cart_item.quantity += quantity
+                cart_item.save()
 
-        if not created:
-            new_quantity = cart_item.quantity + quantity
-            if product.stock_quantity < new_quantity:
-                err_msg = f"Insufficient stock. Available: {product.stock_quantity}"
-                raise ValueError(err_msg)
-            cart_item.quantity = new_quantity
-            cart_item.save(update_fields=["quantity", "updated_at"])
+            self.update_totals()
+            return cart_item
 
-        self.update_totals()
-        return cart_item
+        except Exception as e:
+            logger.error(f"Failed to add item to cart: {str(e)}")
+            raise
 
     def remove_item(self, product) -> None:
         """Remove item from cart."""
@@ -162,6 +165,9 @@ class Cart(AuditStampedModelBase):
         if not self.expires_at:
             return False
         return timezone.now() > self.expires_at
+
+
+# apps/orders/models.py - CartItem class fixes
 
 
 class CartItem(AuditStampedModelBase):
@@ -192,11 +198,6 @@ class CartItem(AuditStampedModelBase):
         max_digits=10,
         decimal_places=2,
         default_currency="GHS",
-        validators=[
-            MinValueValidator(Decimal("0.01")),
-            MaxValueValidator(Decimal("9999999.99")),
-        ],
-        help_text="Price at the time of adding to cart",
     )
 
     class Meta:
@@ -212,6 +213,8 @@ class CartItem(AuditStampedModelBase):
 
     def get_total_price(self) -> Decimal:
         """Calculate total price for this cart item."""
+        if isinstance(self.price, Money):
+            return self.price.amount * self.quantity
         return self.price * self.quantity
 
     def clean(self) -> None:
@@ -226,34 +229,42 @@ class CartItem(AuditStampedModelBase):
                 },
             )
 
-    def save(self, *args, **kwargs) -> None:
-        """Override save to update cart totals."""
+        # Clean and validate price before model validation
+        if self.price is not None:
+            try:
+                # Handle various price formats
+                if isinstance(self.price, str):
+                    cleaned_price = clean_price_value(self.price)
+                    self.price = Money(cleaned_price, "GHS")
+                elif isinstance(self.price, (int, float)):
+                    self.price = Money(Decimal(str(self.price)), "GHS")
+                elif isinstance(self.price, Decimal):
+                    self.price = Money(self.price, "GHS")
+                elif hasattr(self.price, "amount") and not isinstance(
+                    self.price, Money
+                ):
+                    # Handle case where it might be another money-like object
+                    self.price = Money(self.price.amount, "GHS")
+
+                # Ensure it's a Money object with correct currency
+                if isinstance(self.price, Money) and self.price.currency != "GHS":
+                    self.price = Money(self.price.amount, "GHS")
+
+            except Exception as e:
+                logger.error(f"Error cleaning price in CartItem: {str(e)}")
+                raise ValidationError(f"Invalid price format: {self.price}")
+
+    def save(self, *args, **kwargs):
+        """Save cart item with proper price handling."""
+        # Clean the price before validation
+        self.full_clean()
         super().save(*args, **kwargs)
-        if self.cart_id:
-            self.cart.update_totals()
 
 
 class Order(AuditStampedModelBase):
     """
     Order model representing a completed purchase.
     """
-
-    class OrderStatus(models.TextChoices):
-        PENDING = "pending", "Pending"
-        CONFIRMED = "confirmed", "Confirmed"
-        PROCESSING = "processing", "Processing"
-        SHIPPED = "shipped", "Shipped"
-        DELIVERED = "delivered", "Delivered"
-        CANCELLED = "cancelled", "Cancelled"
-        RETURNED = "returned", "Returned"
-        REFUNDED = "refunded", "Refunded"
-
-    class PaymentStatus(models.TextChoices):
-        PENDING = "pending", "Pending"
-        PAID = "paid", "Paid"
-        FAILED = "failed", "Failed"
-        REFUNDED = "refunded", "Refunded"
-        PARTIALLY_REFUNDED = "partially_refunded", "Partially Refunded"
 
     # Order identification
     order_number = models.CharField(
@@ -581,13 +592,13 @@ class Order(AuditStampedModelBase):
 
     def can_be_cancelled(self) -> bool:
         """Check if order can be cancelled."""
-        return self.status in [self.OrderStatus.PENDING, self.OrderStatus.CONFIRMED]
+        return self.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]
 
     def can_be_shipped(self) -> bool:
         """Check if order can be shipped."""
         return (
-            self.status in [self.OrderStatus.CONFIRMED, self.OrderStatus.PROCESSING]
-            and self.payment_status == self.PaymentStatus.PAID
+            self.status in [OrderStatus.CONFIRMED, OrderStatus.PROCESSING]
+            and self.payment_status == PaymentStatus.PAID
         )
 
     @transaction.atomic
@@ -597,7 +608,7 @@ class Order(AuditStampedModelBase):
             err_msg = "Order cannot be shipped in current state"
             raise ValueError(err_msg)
 
-        self.status = self.OrderStatus.SHIPPED
+        self.status = OrderStatus.SHIPPED
         self.shipped_at = timezone.now()
 
         if tracking_number:
@@ -618,11 +629,11 @@ class Order(AuditStampedModelBase):
     @transaction.atomic
     def mark_as_delivered(self) -> None:
         """Mark order as delivered."""
-        if self.status != self.OrderStatus.SHIPPED:
+        if self.status != OrderStatus.SHIPPED:
             err_msg = "Order must be shipped before marking as delivered"
             raise ValueError(err_msg)
 
-        self.status = self.OrderStatus.DELIVERED
+        self.status = OrderStatus.DELIVERED
         self.delivered_at = timezone.now()
         self.save(update_fields=["status", "delivered_at", "updated_at"])
 
@@ -638,7 +649,7 @@ class Order(AuditStampedModelBase):
             item.product.stock_quantity += item.quantity
             item.product.save(update_fields=["stock_quantity", "updated_at"])
 
-        self.status = self.OrderStatus.CANCELLED
+        self.status = OrderStatus.CANCELLED
         if reason:
             self.notes = f"Cancelled: {reason}\n{self.notes}"
         self.save(update_fields=["status", "notes", "updated_at"])

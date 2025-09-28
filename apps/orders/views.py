@@ -15,9 +15,10 @@ from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import (OpenApiParameter, extend_schema,
-                                   extend_schema_view)
-from rest_framework import filters, status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
+                                   extend_schema, extend_schema_view)
+from rest_framework import filters, permissions, status
 from rest_framework.decorators import action
 from rest_framework.permissions import (IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
@@ -51,10 +52,21 @@ logger = structlog.get_logger(__name__)
     list=extend_schema(
         summary="Get user's cart",
         description="Retrieve the current user's cart with all items and totals.",
+        responses={
+            200: CartSerializer,
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Cart"],
     ),
     create=extend_schema(
         summary="Create or get cart",
         description="Create a new cart or get existing cart for the user.",
+        responses={
+            201: CartSerializer,
+            400: OpenApiResponse(description="Invalid input"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Cart"],
     ),
 )
 class CartViewSet(BaseViewSet):
@@ -65,15 +77,19 @@ class CartViewSet(BaseViewSet):
 
     serializer_class = CartSerializer
     permission_classes: ClassVar[list] = [IsAuthenticatedOrReadOnly]
+    queryset = Cart.objects.none()
 
     def get_queryset(self):
         """Get cart for current user or session."""
+        if getattr(self, "swagger_fake_view", False):
+            return Cart.objects.none()
+
         if self.request.user.is_authenticated:
             return Cart.objects.filter(user=self.request.user)
 
         # For anonymous users, filter by session
-        session_key = self.request.session.session_key
-        if session_key:
+        if hasattr(self.request, "session") and self.request.session.session_key:
+            session_key = self.request.session.session_key
             return Cart.objects.filter(session_key=session_key, user__isnull=True)
 
         return Cart.objects.none()
@@ -113,9 +129,15 @@ class CartViewSet(BaseViewSet):
 
     @extend_schema(
         request=AddToCartSerializer,
-        responses={200: CartSerializer},
+        responses={
+            200: CartSerializer,
+            400: OpenApiResponse(description="Invalid product or quantity"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Product not found"),
+        },
         summary="Add item to cart",
         description="Add a product to the cart or update quantity if already exists.",
+        tags=["Cart"],
     )
     @action(detail=False, methods=["post"])
     def add_item(self, request):
@@ -154,9 +176,23 @@ class CartViewSet(BaseViewSet):
 
     @extend_schema(
         request=UpdateCartItemSerializer,
-        responses={200: CartSerializer},
+        responses={
+            200: CartSerializer,
+            400: OpenApiResponse(description="Invalid quantity"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Cart item not found"),
+        },
+        parameters=[
+            OpenApiParameter(
+                name="product_id",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.PATH,
+                description="Product ID to update",
+            ),
+        ],
         summary="Update cart item quantity",
         description="Update the quantity of a specific item in the cart. Set quantity to 0 to remove item.",
+        tags=["Cart"],
     )
     @action(detail=False, methods=["patch"], url_path="items/(?P<product_id>[^/.]+)")
     def update_item(self, request, product_id=None):
@@ -217,9 +253,22 @@ class CartViewSet(BaseViewSet):
             )
 
     @extend_schema(
-        responses={200: CartSerializer},
+        responses={
+            200: CartSerializer,
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Cart item not found"),
+        },
+        parameters=[
+            OpenApiParameter(
+                name="product_id",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.PATH,
+                description="Product ID to remove",
+            ),
+        ],
         summary="Remove item from cart",
         description="Remove a specific item from the cart completely.",
+        tags=["Cart"],
     )
     @action(detail=False, methods=["delete"], url_path="items/(?P<product_id>[^/.]+)")
     def remove_item(self, request, product_id=None):
@@ -256,9 +305,13 @@ class CartViewSet(BaseViewSet):
             )
 
     @extend_schema(
-        responses={200: CartSerializer},
+        responses={
+            200: CartSerializer,
+            401: OpenApiResponse(description="Authentication required"),
+        },
         summary="Clear cart",
         description="Remove all items from the cart.",
+        tags=["Cart"],
     )
     @action(detail=False, methods=["delete"])
     def clear(self, request):
@@ -284,9 +337,13 @@ class CartViewSet(BaseViewSet):
             )
 
     @extend_schema(
-        responses={200: ProductAvailabilitySerializer(many=True)},
+        responses={
+            200: ProductAvailabilitySerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+        },
         summary="Check cart items availability",
         description="Check if all cart items are still available in requested quantities.",
+        tags=["Cart"],
     )
     @action(detail=False, methods=["get"])
     def check_availability(self, request):
@@ -321,37 +378,113 @@ class CartViewSet(BaseViewSet):
         summary="List orders",
         description="List orders for the authenticated user or all orders for admin users.",
         parameters=[
-            OpenApiParameter("status", str, description="Filter by order status"),
             OpenApiParameter(
-                "payment_status",
-                str,
+                name="status",
+                type=OpenApiTypes.STR,
+                description="Filter by order status",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="payment_status",
+                type=OpenApiTypes.STR,
                 description="Filter by payment status",
+                required=False,
             ),
             OpenApiParameter(
-                "date_from",
-                str,
+                name="date_from",
+                type=OpenApiTypes.DATE,
                 description="Filter orders from date (YYYY-MM-DD)",
+                required=False,
             ),
             OpenApiParameter(
-                "date_to",
-                str,
+                name="date_to",
+                type=OpenApiTypes.DATE,
                 description="Filter orders to date (YYYY-MM-DD)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="min_amount",
+                type=OpenApiTypes.FLOAT,
+                description="Minimum order amount",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="max_amount",
+                type=OpenApiTypes.FLOAT,
+                description="Maximum order amount",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                description="Search in order number, email, or customer name",
+                required=False,
             ),
         ],
+        responses={
+            200: OrderSummarySerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Orders"],
+    ),
+    retrieve=extend_schema(
+        summary="Get order details",
+        description="Retrieve detailed information about a specific order.",
+        responses={
+            200: OrderSerializer,
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not order owner or admin"),
+            404: OpenApiResponse(description="Order not found"),
+        },
+        tags=["Orders"],
     ),
     create=extend_schema(
         summary="Create order",
         description="Create a new order from cart items.",
         request=OrderCreateSerializer,
-        responses={201: OrderSerializer},
-    ),
-    retrieve=extend_schema(
-        summary="Get order details",
-        description="Retrieve detailed information about a specific order.",
+        responses={
+            201: OrderSerializer,
+            400: OpenApiResponse(description="Invalid input or cart empty"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+        tags=["Orders"],
     ),
     update=extend_schema(
         summary="Update order",
         description="Update order details (admin only).",
+        request=OrderUpdateSerializer,
+        responses={
+            200: OrderSerializer,
+            400: OpenApiResponse(description="Invalid input"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="Order not found"),
+        },
+        tags=["Orders"],
+    ),
+    partial_update=extend_schema(
+        summary="Partial update order",
+        description="Partially update order details (admin only).",
+        request=OrderUpdateSerializer,
+        responses={
+            200: OrderSerializer,
+            400: OpenApiResponse(description="Invalid input"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="Order not found"),
+        },
+        tags=["Orders"],
+    ),
+    destroy=extend_schema(
+        summary="Delete order",
+        description="Delete an order (admin only).",
+        responses={
+            204: OpenApiResponse(description="Order deleted successfully"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="Order not found"),
+        },
+        tags=["Orders"],
     ),
 )
 class OrderViewSet(BaseViewSet):
@@ -361,7 +494,10 @@ class OrderViewSet(BaseViewSet):
     """
 
     serializer_class = OrderSerializer
-    permission_classes: ClassVar[list] = [IsAuthenticated, IsOrderOwnerOrAdmin]
+    permission_classes: ClassVar[list] = [
+        permissions.IsAuthenticated,
+        IsOrderOwnerOrAdmin,
+    ]
     pagination_class = StandardResultsSetPagination
     filter_backends: ClassVar[list] = [
         DjangoFilterBackend,
@@ -382,21 +518,27 @@ class OrderViewSet(BaseViewSet):
         "status",
     ]
     ordering: ClassVar[list] = ["-created_at"]
+    queryset = Order.objects.none()
 
     def get_queryset(self):
         """Get orders based on user permissions."""
+        if getattr(self, "swagger_fake_view", False):
+            return Order.objects.none()
+
         if self.request.user.is_staff:
             # Admin users can see all orders
             return Order.objects.select_related("user").prefetch_related(
                 "items__product",
             )
         else:
-            # Regular users can only see their own orders
-            return (
-                Order.objects.filter(user=self.request.user)
-                .select_related("user")
-                .prefetch_related("items__product")
-            )
+            # Only return orders for authenticated users
+            if self.request.user.is_authenticated:
+                return (
+                    Order.objects.filter(user=self.request.user)
+                    .select_related("user")
+                    .prefetch_related("items__product")
+                )
+            return Order.objects.none()
 
     def get_serializer_class(self):
         """Return appropriate serializer based on action."""
@@ -472,11 +614,22 @@ class OrderViewSet(BaseViewSet):
 
     @extend_schema(
         request=OrderShipmentSerializer,
-        responses={200: OrderSerializer},
+        responses={
+            200: OrderSerializer,
+            400: OpenApiResponse(
+                description="Invalid tracking data or order cannot be shipped"
+            ),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="Order not found"),
+        },
         summary="Ship order",
         description="Mark order as shipped and add tracking information (admin only).",
+        tags=["Orders", "Admin"],
     )
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
+    )
     def ship(self, request, pk=None):
         """Ship an order with tracking information."""
         if not request.user.is_staff:
@@ -515,9 +668,16 @@ class OrderViewSet(BaseViewSet):
 
     @extend_schema(
         request=OrderCancelSerializer,
-        responses={200: OrderSerializer},
+        responses={
+            200: OrderSerializer,
+            400: OpenApiResponse(description="Order cannot be cancelled"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not order owner or admin"),
+            404: OpenApiResponse(description="Order not found"),
+        },
         summary="Cancel order",
         description="Cancel an order and restore inventory.",
+        tags=["Orders"],
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
@@ -556,9 +716,15 @@ class OrderViewSet(BaseViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
-        responses={200: OrderTrackingSerializer},
+        responses={
+            200: OrderTrackingSerializer,
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Not order owner or admin"),
+            404: OpenApiResponse(description="Order not found"),
+        },
         summary="Track order",
         description="Get tracking information for an order.",
+        tags=["Orders"],
     )
     @action(detail=True, methods=["get"])
     def track(self, request, pk=None):
@@ -568,11 +734,20 @@ class OrderViewSet(BaseViewSet):
         return Response(serializer.data)
 
     @extend_schema(
-        responses={200: OrderSerializer},
+        responses={
+            200: OrderSerializer,
+            400: OpenApiResponse(description="Order cannot be marked as delivered"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="Order not found"),
+        },
         summary="Mark as delivered",
         description="Mark order as delivered (admin only).",
+        tags=["Orders", "Admin"],
     )
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
+    )
     def delivered(self, request, pk=None):
         """Mark order as delivered."""
         if not request.user.is_staff:
@@ -598,11 +773,31 @@ class OrderViewSet(BaseViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
-        responses={200: dict},
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "total_orders": {"type": "integer"},
+                    "status_breakdown": {
+                        "type": "object",
+                        "additionalProperties": {"type": "integer"},
+                    },
+                    "total_revenue": {"type": "number"},
+                    "average_order_value": {"type": "number"},
+                    "recent_orders_30_days": {"type": "integer"},
+                    "orders_needing_shipment": {"type": "integer"},
+                },
+            },
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+        },
         summary="Order statistics",
         description="Get order statistics (admin only).",
+        tags=["Orders", "Admin"],
     )
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
+    )
     def statistics(self, request):
         """Get order statistics."""
         if not request.user.is_staff:
@@ -658,3 +853,96 @@ class OrderViewSet(BaseViewSet):
                 {"error": "Failed to calculate statistics"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="days",
+                type=OpenApiTypes.INT,
+                description="Number of days for recent orders (default: 30)",
+                required=False,
+            ),
+        ],
+        responses={
+            200: OrderSummarySerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+        },
+        summary="Get recent orders",
+        description="Get orders from the last N days (admin only).",
+        tags=["Orders", "Admin"],
+    )
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def recent(self, request):
+        """Get recent orders."""
+        try:
+            days = int(request.query_params.get("days", 30))
+            cutoff_date = timezone.now() - timedelta(days=days)
+
+            queryset = self.get_queryset().filter(created_at__gte=cutoff_date)
+            queryset = self.filter_queryset(queryset)
+
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+
+        except ValueError:
+            return Response(
+                {"error": "Invalid days parameter"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="status",
+                type=OpenApiTypes.STR,
+                description="Order status to filter by",
+                required=True,
+            ),
+        ],
+        responses={
+            200: OrderSummarySerializer(many=True),
+            400: OpenApiResponse(description="Invalid status parameter"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+        },
+        summary="Get orders by status",
+        description="Get orders filtered by specific status (admin only).",
+        tags=["Orders", "Admin"],
+    )
+    @action(
+        detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
+    )
+    def by_status(self, request):
+        """Get orders by status."""
+        status_param = request.query_params.get("status")
+        if not status_param:
+            return Response(
+                {"error": "Status parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate status
+        valid_statuses = [choice[0] for choice in Order.OrderStatus.choices]
+        if status_param not in valid_statuses:
+            return Response(
+                {
+                    "error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        queryset = self.get_queryset().filter(status=status_param)
+        queryset = self.filter_queryset(queryset)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

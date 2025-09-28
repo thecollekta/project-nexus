@@ -6,7 +6,7 @@ from typing import ClassVar
 from django.conf import settings
 from django.db import transaction
 
-from apps.orders.models import Order
+from apps.orders.enums import OrderStatus
 from apps.products.models import Product
 
 
@@ -37,7 +37,7 @@ class OrderCalculator:
 
         base_rate = shipping_rates.get(shipping_method, shipping_rates["standard"])
 
-        # Free shipping over $50
+        # Free shipping over ¢50
         if base_rate > 0 and hasattr(settings, "FREE_SHIPPING_THRESHOLD"):
             getattr(settings, "FREE_SHIPPING_THRESHOLD", Decimal("50.00"))
             # Note: This would need the subtotal passed in for a real implementation
@@ -165,40 +165,39 @@ class OrderStatusManager:
 
     # Define allowed status transitions
     ALLOWED_TRANSITIONS: ClassVar = {
-        Order.OrderStatus.PENDING: [
-            Order.OrderStatus.CONFIRMED,
-            Order.OrderStatus.CANCELLED,
+        OrderStatus.PENDING: [
+            OrderStatus.CONFIRMED,
+            OrderStatus.CANCELLED,
         ],
-        Order.OrderStatus.CONFIRMED: [
-            Order.OrderStatus.PROCESSING,
-            Order.OrderStatus.CANCELLED,
+        OrderStatus.CONFIRMED: [
+            OrderStatus.PROCESSING,
+            OrderStatus.CANCELLED,
         ],
-        Order.OrderStatus.PROCESSING: [
-            Order.OrderStatus.SHIPPED,
-            Order.OrderStatus.CANCELLED,
+        OrderStatus.PROCESSING: [
+            OrderStatus.SHIPPED,
+            OrderStatus.CANCELLED,
         ],
-        Order.OrderStatus.SHIPPED: [
-            Order.OrderStatus.DELIVERED,
-            Order.OrderStatus.RETURNED,
+        OrderStatus.SHIPPED: [
+            OrderStatus.DELIVERED,
+            OrderStatus.RETURNED,
         ],
-        Order.OrderStatus.DELIVERED: [
-            Order.OrderStatus.RETURNED,
-            Order.OrderStatus.REFUNDED,
+        OrderStatus.DELIVERED: [
+            OrderStatus.RETURNED,
+            OrderStatus.REFUNDED,
         ],
-        Order.OrderStatus.CANCELLED: [],  # Terminal state
-        Order.OrderStatus.RETURNED: [
-            Order.OrderStatus.REFUNDED,
+        OrderStatus.CANCELLED: [],  # Terminal state
+        OrderStatus.RETURNED: [
+            OrderStatus.REFUNDED,
         ],
-        Order.OrderStatus.REFUNDED: [],  # Terminal state
+        OrderStatus.REFUNDED: [],  # Terminal state
     }
-
-    @classmethod
-    def can_transition(cls, current_status: str, new_status: str) -> bool:
-        """Check if status transition is allowed."""
-        allowed = cls.ALLOWED_TRANSITIONS.get(current_status, [])
-        return new_status in allowed
 
     @classmethod
     def get_allowed_transitions(cls, current_status: str) -> list[str]:
         """Get list of allowed status transitions from current status."""
         return cls.ALLOWED_TRANSITIONS.get(current_status, [])
+
+    @classmethod
+    def can_transition(cls, current_status: str, new_status: str) -> bool:
+        """Check if status transition is allowed."""
+        return new_status in cls.get_allowed_transitions(current_status)

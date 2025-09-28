@@ -83,7 +83,7 @@ class CartItemAdmin(admin.ModelAdmin):
 
     def total_price_display(self, obj):
         """Display calculated total price."""
-        return f"${obj.get_total_price():.2f}"
+        return f"¢{obj.get_total_price():.2f}"
 
     total_price_display.short_description = "Total Price"
 

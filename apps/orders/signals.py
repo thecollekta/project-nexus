@@ -7,6 +7,7 @@ from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.template.loader import render_to_string
 
+from apps.orders.enums import OrderStatus
 from apps.orders.models import Order, OrderItem
 
 logger = structlog.get_logger(__name__)
@@ -22,7 +23,7 @@ def handle_order_status_change(sender, instance, created, **kwargs):
 
     elif hasattr(instance, "_state") and instance.state.fields_cache.get("status"):
         # Status has changed
-        old_status = instance.state.fields_cache["status"]
+        old_status = instance._state.fields_cache["status"]
         new_status = instance.status
 
         if old_status != new_status:
@@ -64,20 +65,20 @@ def send_order_status_change_email(order, old_status, new_status):
     try:
         # Only send emails for significant status changes
         notify_statuses = [
-            Order.OrderStatus.CONFIRMED,
-            Order.OrderStatus.SHIPPED,
-            Order.OrderStatus.DELIVERED,
-            Order.OrderStatus.CANCELLED,
+            OrderStatus.CONFIRMED,
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED,
+            OrderStatus.CANCELLED,
         ]
 
         if new_status not in notify_statuses:
             return
 
         subject_mapping = {
-            Order.OrderStatus.CONFIRMED: f"Order Confirmed - {order.order_number}",
-            Order.OrderStatus.SHIPPED: f"Order Shipped - {order.order_number}",
-            Order.OrderStatus.DELIVERED: f"Order Delivered - {order.order_number}",
-            Order.OrderStatus.CANCELLED: f"Order Cancelled - {order.order_number}",
+            OrderStatus.CONFIRMED: f"Order Confirmed - {order.order_number}",
+            OrderStatus.SHIPPED: f"Order Shipped - {order.order_number}",
+            OrderStatus.DELIVERED: f"Order Delivered - {order.order_number}",
+            OrderStatus.CANCELLED: f"Order Cancelled - {order.order_number}",
         }
 
         subject = subject_mapping.get(
@@ -118,8 +119,8 @@ def handle_order_item_deletion(sender, instance, **kwargs):
     if (
         instance.order.status
         in [
-            Order.OrderStatus.PENDING,
-            Order.OrderStatus.CANCELLED,
+            OrderStatus.PENDING,
+            OrderStatus.CANCELLED,
         ]
         and instance.product
     ):
