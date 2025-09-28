@@ -16,28 +16,37 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
-                                   extend_schema, extend_schema_view)
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import filters, permissions, status
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from apps.core.pagination import StandardResultsSetPagination
 from apps.core.views import BaseViewSet
 from apps.orders.models import Cart, CartItem, Order
-from apps.orders.serializers import (AddToCartSerializer, CartSerializer,
-                                     OrderCancelSerializer,
-                                     OrderCreateSerializer, OrderSerializer,
-                                     OrderShipmentSerializer,
-                                     OrderSummarySerializer,
-                                     OrderTrackingSerializer,
-                                     OrderUpdateSerializer,
-                                     ProductAvailabilitySerializer,
-                                     UpdateCartItemSerializer)
-from apps.orders.tasks import (send_order_confirmation_email_task,
-                               send_shipping_notification_task)
+from apps.orders.serializers import (
+    AddToCartSerializer,
+    CartSerializer,
+    OrderCancelSerializer,
+    OrderCreateSerializer,
+    OrderSerializer,
+    OrderShipmentSerializer,
+    OrderSummarySerializer,
+    OrderTrackingSerializer,
+    OrderUpdateSerializer,
+    ProductAvailabilitySerializer,
+    UpdateCartItemSerializer,
+)
+from apps.orders.tasks import (
+    send_order_confirmation_email_task,
+    send_shipping_notification_task,
+)
 from apps.orders.utils import InventoryManager
 from apps.products.models import Product
 
@@ -48,6 +57,48 @@ User = get_user_model()
 logger = structlog.get_logger(__name__)
 
 
+class BaseCartOrderMixin:
+    """Base mixin for common cart and order functionality."""
+
+    def _handle_cart_operation(
+        self, request, operation, success_message, log_extra=None
+    ):
+        """Common method to handle cart operations with error handling."""
+        try:
+            cart, _ = self.get_or_create_cart()
+            result = operation(cart, request)
+
+            logger.info(
+                success_message,
+                extra={
+                    "user_id": getattr(request.user, "id", None),
+                    **(log_extra or {}),
+                },
+            )
+
+            cart_serializer = CartSerializer(cart, context={"request": request})
+            return Response(cart_serializer.data)
+
+        except Exception as e:
+            logger.error(f"Error in cart operation: {e}")
+            return Response(
+                {"error": "Failed to complete operation"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _get_paginated_response(self, queryset, request, serializer_class=None):
+        """Common method to handle paginated responses."""
+        serializer_class = serializer_class or self.get_serializer_class()
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializer_class(page, many=True, context={"request": request})
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(queryset, many=True, context={"request": request})
+        return Response(serializer.data)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="Get user's cart",
@@ -56,7 +107,6 @@ logger = structlog.get_logger(__name__)
             200: CartSerializer,
             401: OpenApiResponse(description="Authentication required"),
         },
-        tags=["Cart"],
     ),
     create=extend_schema(
         summary="Create or get cart",
@@ -66,10 +116,10 @@ logger = structlog.get_logger(__name__)
             400: OpenApiResponse(description="Invalid input"),
             401: OpenApiResponse(description="Authentication required"),
         },
-        tags=["Cart"],
     ),
 )
-class CartViewSet(BaseViewSet):
+@extend_schema(tags=["Cart"])
+class CartViewSet(BaseViewSet, BaseCartOrderMixin):
     """
     ViewSet for managing shopping carts.
     Handles cart creation, item management, and totals calculation.
@@ -137,7 +187,6 @@ class CartViewSet(BaseViewSet):
         },
         summary="Add item to cart",
         description="Add a product to the cart or update quantity if already exists.",
-        tags=["Cart"],
     )
     @action(detail=False, methods=["post"])
     def add_item(self, request):
@@ -147,31 +196,29 @@ class CartViewSet(BaseViewSet):
 
         try:
             cart, _ = self.get_or_create_cart()
-
             product = Product.objects.get(id=serializer.validated_data["product_id"])
             quantity = serializer.validated_data["quantity"]
 
             cart.add_item(product, quantity)
 
-            logger.info(
-                f"Added {quantity}x {product.name} to cart",
-                extra={
-                    "user_id": getattr(request.user, "id", None),
-                    "product_id": str(product.id),
-                    "quantity": quantity,
-                },
-            )
+            log_extra = {
+                "product_id": str(product.id),
+                "quantity": quantity,
+            }
 
-            cart_serializer = CartSerializer(cart, context={"request": request})
-            return Response(cart_serializer.data)
+            return self._handle_cart_operation(
+                request,
+                lambda cart, req: cart,  # Operation already done above
+                f"Added {quantity}x {product.name} to cart",
+                log_extra,
+            )
 
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error adding item to cart: {e}")
+        except Product.DoesNotExist:
             return Response(
-                {"error": "Failed to add item to cart"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": "Product not found"},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
     @extend_schema(
@@ -192,15 +239,13 @@ class CartViewSet(BaseViewSet):
         ],
         summary="Update cart item quantity",
         description="Update the quantity of a specific item in the cart. Set quantity to 0 to remove item.",
-        tags=["Cart"],
     )
     @action(detail=False, methods=["patch"], url_path="items/(?P<product_id>[^/.]+)")
     def update_item(self, request, product_id=None):
         """Update cart item quantity."""
-        try:
-            cart, _ = self.get_or_create_cart()
-            cart_item = get_object_or_404(CartItem, cart=cart, product_id=product_id)
 
+        def update_operation(cart, request):
+            cart_item = get_object_or_404(CartItem, cart=cart, product_id=product_id)
             serializer = UpdateCartItemSerializer(
                 cart_item,
                 data=request.data,
@@ -211,45 +256,24 @@ class CartViewSet(BaseViewSet):
             quantity = serializer.validated_data["quantity"]
 
             if quantity == 0:
-                # Remove item from cart
-                product_name = cart_item.product.name
                 cart_item.delete()
-
-                logger.info(
-                    f"Removed {product_name} from cart",
-                    extra={
-                        "user_id": getattr(request.user, "id", None),
-                        "product_id": product_id,
-                    },
-                )
             else:
-                # Update quantity
                 cart_item.quantity = quantity
                 cart_item.save(update_fields=["quantity", "updated_at"])
 
-                logger.info(
-                    f"Updated cart item quantity to {quantity}",
-                    extra={
-                        "user_id": getattr(request.user, "id", None),
-                        "product_id": product_id,
-                        "quantity": quantity,
-                    },
-                )
+            return cart
 
-            cart.refresh_from_db()
-            cart_serializer = CartSerializer(cart, context={"request": request})
-            return Response(cart_serializer.data)
-
+        try:
+            return self._handle_cart_operation(
+                request,
+                update_operation,
+                f"Updated cart item quantity for product {product_id}",
+                {"product_id": product_id, "quantity": request.data.get("quantity")},
+            )
         except CartItem.DoesNotExist:
             return Response(
                 {"error": "Item not found in cart"},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:
-            logger.error(f"Error updating cart item: {e}")
-            return Response(
-                {"error": "Failed to update cart item"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -268,40 +292,27 @@ class CartViewSet(BaseViewSet):
         ],
         summary="Remove item from cart",
         description="Remove a specific item from the cart completely.",
-        tags=["Cart"],
     )
     @action(detail=False, methods=["delete"], url_path="items/(?P<product_id>[^/.]+)")
     def remove_item(self, request, product_id=None):
         """Remove item from cart."""
-        try:
-            cart, _ = self.get_or_create_cart()
+
+        def remove_operation(cart, request):
             cart_item = get_object_or_404(CartItem, cart=cart, product_id=product_id)
-
-            product_name = cart_item.product.name
             cart_item.delete()
+            return cart
 
-            logger.info(
-                f"Removed {product_name} from cart",
-                extra={
-                    "user_id": getattr(request.user, "id", None),
-                    "product_id": product_id,
-                },
+        try:
+            return self._handle_cart_operation(
+                request,
+                remove_operation,
+                f"Removed item {product_id} from cart",
+                {"product_id": product_id},
             )
-
-            cart.refresh_from_db()
-            cart_serializer = CartSerializer(cart, context={"request": request})
-            return Response(cart_serializer.data)
-
         except CartItem.DoesNotExist:
             return Response(
                 {"error": "Item not found in cart"},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:
-            logger.error(f"Error removing cart item: {e}")
-            return Response(
-                {"error": "Failed to remove cart item"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -311,30 +322,19 @@ class CartViewSet(BaseViewSet):
         },
         summary="Clear cart",
         description="Remove all items from the cart.",
-        tags=["Cart"],
     )
     @action(detail=False, methods=["delete"])
     def clear(self, request):
         """Clear all items from cart."""
-        try:
-            cart, _ = self.get_or_create_cart()
+
+        def clear_operation(cart, request):
             items_count = cart.items.count()
             cart.clear()
+            return cart
 
-            logger.info(
-                f"Cleared cart with {items_count} items",
-                extra={"user_id": getattr(request.user, "id", None)},
-            )
-
-            cart_serializer = CartSerializer(cart, context={"request": request})
-            return Response(cart_serializer.data)
-
-        except Exception as e:
-            logger.error(f"Error clearing cart: {e}")
-            return Response(
-                {"error": "Failed to clear cart"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return self._handle_cart_operation(
+            request, clear_operation, "Cleared all items from cart"
+        )
 
     @extend_schema(
         responses={
@@ -343,7 +343,6 @@ class CartViewSet(BaseViewSet):
         },
         summary="Check cart items availability",
         description="Check if all cart items are still available in requested quantities.",
-        tags=["Cart"],
     )
     @action(detail=False, methods=["get"])
     def check_availability(self, request):
@@ -425,7 +424,6 @@ class CartViewSet(BaseViewSet):
             200: OrderSummarySerializer(many=True),
             401: OpenApiResponse(description="Authentication required"),
         },
-        tags=["Orders"],
     ),
     retrieve=extend_schema(
         summary="Get order details",
@@ -436,7 +434,6 @@ class CartViewSet(BaseViewSet):
             403: OpenApiResponse(description="Not order owner or admin"),
             404: OpenApiResponse(description="Order not found"),
         },
-        tags=["Orders"],
     ),
     create=extend_schema(
         summary="Create order",
@@ -447,7 +444,6 @@ class CartViewSet(BaseViewSet):
             400: OpenApiResponse(description="Invalid input or cart empty"),
             401: OpenApiResponse(description="Authentication required"),
         },
-        tags=["Orders"],
     ),
     update=extend_schema(
         summary="Update order",
@@ -460,7 +456,6 @@ class CartViewSet(BaseViewSet):
             403: OpenApiResponse(description="Admin permission required"),
             404: OpenApiResponse(description="Order not found"),
         },
-        tags=["Orders"],
     ),
     partial_update=extend_schema(
         summary="Partial update order",
@@ -473,7 +468,6 @@ class CartViewSet(BaseViewSet):
             403: OpenApiResponse(description="Admin permission required"),
             404: OpenApiResponse(description="Order not found"),
         },
-        tags=["Orders"],
     ),
     destroy=extend_schema(
         summary="Delete order",
@@ -484,10 +478,10 @@ class CartViewSet(BaseViewSet):
             403: OpenApiResponse(description="Admin permission required"),
             404: OpenApiResponse(description="Order not found"),
         },
-        tags=["Orders"],
     ),
 )
-class OrderViewSet(BaseViewSet):
+@extend_schema(tags=["Orders"])
+class OrderViewSet(BaseViewSet, BaseCartOrderMixin):
     """
     ViewSet for managing orders.
     Handles order creation, retrieval, and status updates.
@@ -542,19 +536,16 @@ class OrderViewSet(BaseViewSet):
 
     def get_serializer_class(self):
         """Return appropriate serializer based on action."""
-        if self.action == "create":
-            return OrderCreateSerializer
-        elif self.action == "update" or self.action == "partial_update":
-            return OrderUpdateSerializer
-        elif self.action == "list":
-            return OrderSummarySerializer
-        elif self.action == "ship":
-            return OrderShipmentSerializer
-        elif self.action == "cancel":
-            return OrderCancelSerializer
-        elif self.action == "track":
-            return OrderTrackingSerializer
-        return OrderSerializer
+        serializer_map = {
+            "create": OrderCreateSerializer,
+            "update": OrderUpdateSerializer,
+            "partial_update": OrderUpdateSerializer,
+            "list": OrderSummarySerializer,
+            "ship": OrderShipmentSerializer,
+            "cancel": OrderCancelSerializer,
+            "track": OrderTrackingSerializer,
+        }
+        return serializer_map.get(self.action, OrderSerializer)
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
@@ -612,6 +603,82 @@ class OrderViewSet(BaseViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    def _handle_order_action(
+        self,
+        request,
+        pk,
+        action_name,
+        serializer_class,
+        action_method,
+        admin_only=False,
+    ):
+        """Common method to handle order actions."""
+        if admin_only and not request.user.is_staff:
+            return Response(
+                {"error": "Admin permission required"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        order = self.get_object()
+
+        # For cancel action, check if user owns the order or is admin
+        if (
+            action_name == "cancel"
+            and order.user != request.user
+            and not request.user.is_staff
+        ):
+            return Response(
+                {"error": "You can only cancel your own orders"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            updated_order = action_method(order, serializer.validated_data)
+
+            logger.info(
+                f"Order {action_name}: {order.order_number}",
+                extra={
+                    "order_id": str(order.id),
+                    f"{action_name}_by": str(request.user.id),
+                    **self._get_action_log_extra(
+                        action_name, serializer.validated_data, order
+                    ),
+                },
+            )
+
+            # Send notifications for specific actions
+            self._send_action_notifications(action_name, order)
+
+            response_serializer = OrderSerializer(
+                updated_order,
+                context={"request": request},
+            )
+            return Response(response_serializer.data)
+
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_action_log_extra(self, action_name, validated_data, order):
+        """Get extra log data for specific actions."""
+        if action_name == "shipped":
+            return {
+                "tracking_number": order.tracking_number,
+                "carrier": order.carrier,
+            }
+        elif action_name == "cancelled":
+            return {
+                "reason": validated_data.get("reason", ""),
+            }
+        return {}
+
+    def _send_action_notifications(self, action_name, order):
+        """Send notifications for specific actions."""
+        if action_name == "shipped":
+            send_shipping_notification_task.delay(str(order.id))
+
     @extend_schema(
         request=OrderShipmentSerializer,
         responses={
@@ -625,46 +692,20 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Ship order",
         description="Mark order as shipped and add tracking information (admin only).",
-        tags=["Orders", "Admin"],
     )
     @action(
         detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
     )
     def ship(self, request, pk=None):
         """Ship an order with tracking information."""
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Admin permission required"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        order = self.get_object()
-        serializer = OrderShipmentSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            updated_order = serializer.ship_order(order)
-
-            logger.info(
-                f"Order shipped: {order.order_number}",
-                extra={
-                    "order_id": str(order.id),
-                    "tracking_number": updated_order.tracking_number,
-                    "carrier": updated_order.carrier,
-                },
-            )
-
-            # Send shipping notification
-            send_shipping_notification_task.delay(str(order.id))
-
-            response_serializer = OrderSerializer(
-                updated_order,
-                context={"request": request},
-            )
-            return Response(response_serializer.data)
-
-        except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return self._handle_order_action(
+            request,
+            pk,
+            "shipped",
+            OrderShipmentSerializer,
+            lambda order, data: OrderShipmentSerializer.ship_order(order, data),
+            admin_only=True,
+        )
 
     @extend_schema(
         request=OrderCancelSerializer,
@@ -677,43 +718,17 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Cancel order",
         description="Cancel an order and restore inventory.",
-        tags=["Orders"],
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         """Cancel an order."""
-        order = self.get_object()
-
-        # Check permissions - users can cancel their own orders, admins can cancel any
-        if order.user != request.user and not request.user.is_staff:
-            return Response(
-                {"error": "You can only cancel your own orders"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        serializer = OrderCancelSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            updated_order = serializer.cancel_order(order)
-
-            logger.info(
-                f"Order cancelled: {order.order_number}",
-                extra={
-                    "order_id": str(order.id),
-                    "cancelled_by": str(request.user.id),
-                    "reason": serializer.validated_data.get("reason", ""),
-                },
-            )
-
-            response_serializer = OrderSerializer(
-                updated_order,
-                context={"request": request},
-            )
-            return Response(response_serializer.data)
-
-        except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return self._handle_order_action(
+            request,
+            pk,
+            "cancelled",
+            OrderCancelSerializer,
+            lambda order, data: OrderCancelSerializer.cancel_order(order, data),
+        )
 
     @extend_schema(
         responses={
@@ -724,7 +739,6 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Track order",
         description="Get tracking information for an order.",
-        tags=["Orders"],
     )
     @action(detail=True, methods=["get"])
     def track(self, request, pk=None):
@@ -743,7 +757,7 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Mark as delivered",
         description="Mark order as delivered (admin only).",
-        tags=["Orders", "Admin"],
+        tags=["Orders"],
     )
     @action(
         detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated]
@@ -793,7 +807,6 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Order statistics",
         description="Get order statistics (admin only).",
-        tags=["Orders", "Admin"],
     )
     @action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
@@ -870,7 +883,6 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Get recent orders",
         description="Get orders from the last N days (admin only).",
-        tags=["Orders", "Admin"],
     )
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def recent(self, request):
@@ -882,13 +894,9 @@ class OrderViewSet(BaseViewSet):
             queryset = self.get_queryset().filter(created_at__gte=cutoff_date)
             queryset = self.filter_queryset(queryset)
 
-            page = self.paginate_queryset(queryset)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
+            return self._get_paginated_response(
+                queryset, request, OrderSummarySerializer
+            )
 
         except ValueError:
             return Response(
@@ -912,10 +920,9 @@ class OrderViewSet(BaseViewSet):
         },
         summary="Get orders by status",
         description="Get orders filtered by specific status (admin only).",
-        tags=["Orders", "Admin"],
     )
     @action(
-        detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
+        detail=False, methods=["get"], url_path="by-status", permission_classes=[permissions.IsAuthenticated]
     )
     def by_status(self, request):
         """Get orders by status."""
@@ -939,10 +946,4 @@ class OrderViewSet(BaseViewSet):
         queryset = self.get_queryset().filter(status=status_param)
         queryset = self.filter_queryset(queryset)
 
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, OrderSummarySerializer)

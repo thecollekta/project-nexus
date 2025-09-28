@@ -197,3 +197,27 @@ def test_price_cleaning():
             results.append(f"{test_case!r} -> ERROR: {e}")
 
     return "\n".join(results)
+
+
+class SensitiveDataFilter:
+    """Filter that redacts sensitive information from log records."""
+
+    PATTERNS = [
+        (r'email[\'"]\s*:\s*[\'"]([^\'"]*)[\'"]', "email"),
+        (r'user_id[\'"]\s*:\s*[\'"]([^\'"]*)[\'"]', "user_id"),
+        (r'ip_address[\'"]\s*:\s*[\'"]([^\'"]*)[\'"]', "ip_address"),
+        (r'password[\'"]\s*:\s*[\'"]([^\'"]*)[\'"]', "password"),
+    ]
+
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            for pattern, field_name in self.PATTERNS:
+                record.msg = re.sub(pattern, f'{field_name}: "[*****]"', record.msg)
+
+            # Handle extra dict if it exists
+            if hasattr(record, "extra"):
+                for key in record.extra.keys():
+                    if key in ["email", "user_id", "ip_address", "password"]:
+                        record.extra[key] = "[*****]"
+
+        return True

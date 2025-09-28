@@ -120,6 +120,18 @@ INSTALLED_APPS = [
     "apps.orders.apps.OrdersConfig",
 ]
 
+# Debug toolbar configuration
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": lambda request: (
+        not any(
+            request.path.startswith(path) for path in ["/api/", "/admin/", "/graphql/"]
+        )
+    ),
+    "RESULTS_CACHE_SIZE": 10,  # Reduce cache size
+    "SQL_WARNING_THRESHOLD": 100,  # Only show slow queries
+    "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,  # Only show in DEBUG mode
+}
+
 # Django Money settings
 INSTALLED_APPS += [
     "djmoney",
@@ -143,19 +155,64 @@ DECIMAL_PLACES = 2
 MAX_DIGITS = 10
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # CORS Middleware
+    "corsheaders.middleware.CorsMiddleware",  # CORS
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "apps.core.middleware.CurrentUserMiddleware",  # Current User Middleware
+    "ecommerce_backend.middleware.AuthMiddleware",  # Auth
+    "ecommerce_backend.middleware.SensitiveDataMiddleware",  # sensitive data
+    "ecommerce_backend.middleware.PayloadOptimizationMiddleware",  # Optimize payload
+    "ecommerce_backend.middleware.SecurityHeadersMiddleware",  # Security headers
+    "ecommerce_backend.middleware.DebugToolbarConditionalMiddleware",  # Conditional debug toolbar
+    "apps.core.middleware.CurrentUserMiddleware",  # Current User
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "django.middleware.gzip.GZipMiddleware",
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
+    "django.middleware.gzip.GZipMiddleware",  # Compression
+    "debug_toolbar.middleware.DebugToolbarMiddleware",  # For API requests
 ]
+
+# Security headers
+SECURE_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+# XSS Protection
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = "DENY"
+
+# Security settings
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# CSRF settings
+CSRF_COOKIE_HTTPONLY = True  # Recommended for security
+CSRF_COOKIE_SAMESITE = "Lax"  # or "Strict" for better security
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_HEADER_NAME = "HTTP_X_CSRFTOKEN"
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# Session settings
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
+SESSION_SAVE_EVERY_REQUEST = True
+
+
+# GZip compression settings
+GZIP_MIDDLEWARE = "django.middleware.gzip.GZipMiddleware"
+if GZIP_MIDDLEWARE not in MIDDLEWARE:
+    MIDDLEWARE.append(GZIP_MIDDLEWARE)
+
+GZIP_COMPRESSION_LEVEL = 6  # Balanced compression level (1-9)
 
 ROOT_URLCONF = "ecommerce_backend.urls"
 
@@ -225,6 +282,44 @@ def get_database_config():
 # Database Configuration
 DATABASES = get_database_config()
 
+# Cache settings
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": True,
+        },
+        "KEY_PREFIX": "ecommerce",
+    },
+    "sessions": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/2"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "ecommerce_sessions",
+    },
+}
+
+
+# Session settings
+SESSION_ENGINE = env.str(
+    "SESSION_ENGINE", default="django.contrib.sessions.backends.cache"
+)
+SESSION_CACHE_ALIAS = "sessions"
+CACHE_TTL = 60 * 15  # 15 minutes
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+CSRF_USE_SESSIONS = env.bool("CSRF_USE_SESSIONS", default=False)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool(
+    "SESSION_EXPIRE_AT_BROWSER_CLOSE", default=False
+)
+SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=1209600)  # 2 weeks default
+
+
 # Authentication backends
 AUTHENTICATION_BACKENDS = [
     "apps.accounts.backends.EmailBackend",  # Custom email auth backend
@@ -280,26 +375,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Session settings
-SESSION_ENGINE = env.str(
-    "SESSION_ENGINE", default="django.contrib.sessions.backends.cache"
-)
-SESSION_CACHE_ALIAS = "sessions"
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
-CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
-CSRF_USE_SESSIONS = env.bool("CSRF_USE_SESSIONS", default=False)
-SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool(
-    "SESSION_EXPIRE_AT_BROWSER_CLOSE", default=False
-)
-SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=1209600)  # 2 weeks default
-
-# CSRF settings
-CSRF_COOKIE_HTTPONLY = True  # Recommended for security
-CSRF_COOKIE_SAMESITE = "Lax"  # or "Strict" for better security
-CSRF_COOKIE_NAME = "csrftoken"
-CSRF_HEADER_NAME = "HTTP_X_CSRFTOKEN"
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # Debug Toolbar settings
 if DEBUG:
@@ -322,26 +397,6 @@ if DEBUG:
 
 # INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
 
-# Cache settings
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "IGNORE_EXCEPTIONS": True,
-        },
-        "KEY_PREFIX": "ecommerce",
-    },
-    "sessions": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/2"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "ecommerce_sessions",
-    },
-}
 
 # Celery Configuration
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
@@ -473,6 +528,11 @@ LOGGING = {
         "simple": {
             "format": "{levelname} {message}",
             "style": "{",
+        },
+    },
+    "filters": {
+        "sensitive_data": {
+            "()": "apps.core.utils.SensitiveDataFilter",
         },
     },
     "handlers": {

@@ -59,15 +59,54 @@ from apps.products.serializers import (
 logger = structlog.get_logger(__name__)
 
 
+class BaseProductCategoryMixin:
+    """Base mixin for common product and category functionality."""
+
+    def _get_paginated_response(
+        self, queryset, request, serializer_class, context=None
+    ):
+        """Common method to handle paginated responses."""
+        context = context or {}
+        context["request"] = request
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializer_class(page, many=True, context=context)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(queryset, many=True, context=context)
+        return Response(serializer.data)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List all categories",
         description="Retrieve a paginated list of all product categories with optional filtering.",
         parameters=[
             OpenApiParameter(
-                name="parent",
-                type={"type": "integer", "nullable": True},
+                name="id",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.PATH,
                 description="Filter by parent category ID (null for root categories)",
+                required=True,
+            ),
+            OpenApiParameter(
+                name="in_stock",
+                type=OpenApiTypes.BOOL,
+                description="Filter products in stock",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="min_price",
+                type=OpenApiTypes.FLOAT,
+                description="Minimum product price",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="max_price",
+                type=OpenApiTypes.FLOAT,
+                description="Maximum product price",
+                required=False,
             ),
             OpenApiParameter(
                 name="is_featured",
@@ -81,9 +120,15 @@ logger = structlog.get_logger(__name__)
             ),
         ],
         responses={
-            200: CategoryListSerializer(many=True),
-            400: OpenApiResponse(description="Invalid filter parameters"),
+            200: ProductListSerializer(many=True),
+            400: OpenApiResponse(
+                description="Invalid UUID format or parameters",
+            ),
+            404: OpenApiResponse(
+                description="Category not found",
+            ),
         },
+        tags=["Categories"],
     ),
     retrieve=extend_schema(
         summary="Retrieve a category",
@@ -155,7 +200,7 @@ logger = structlog.get_logger(__name__)
         parameters=[
             OpenApiParameter(
                 name="id",
-                type=int,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.PATH,
                 description="Parent category ID",
             ),
@@ -171,7 +216,7 @@ logger = structlog.get_logger(__name__)
         parameters=[
             OpenApiParameter(
                 name="id",
-                type=int,
+                type=OpenApiTypes.UUID,
                 location=OpenApiParameter.PATH,
                 description="Category ID",
             ),
@@ -200,7 +245,8 @@ logger = structlog.get_logger(__name__)
         },
     ),
 )
-class CategoryViewSet(BaseViewSet):
+@extend_schema(tags=["Categories"])
+class CategoryViewSet(BaseViewSet, BaseProductCategoryMixin):
     """
     ViewSet for managing product categories.
 
@@ -272,22 +318,7 @@ class CategoryViewSet(BaseViewSet):
         """Get all root categories."""
         queryset = self.get_queryset().filter(parent__isnull=True)
         queryset = self.filter_queryset(queryset)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = CategoryListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = CategoryListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, CategoryListSerializer)
 
     @extend_schema(
         summary="Get featured categories",
@@ -300,22 +331,7 @@ class CategoryViewSet(BaseViewSet):
         """Get all featured categories."""
         queryset = self.get_queryset().filter(is_featured=True)
         queryset = self.filter_queryset(queryset)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = CategoryListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = CategoryListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, CategoryListSerializer)
 
     @extend_schema(
         summary="Get category children",
@@ -331,22 +347,7 @@ class CategoryViewSet(BaseViewSet):
             "sort_order",
             "name",
         )
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = CategoryListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = CategoryListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, CategoryListSerializer)
 
     @extend_schema(
         summary="Get category products",
@@ -360,94 +361,37 @@ class CategoryViewSet(BaseViewSet):
         category = self.get_object()
         queryset = category.products.filter(is_active=True).select_related("category")
 
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ProductListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
+        # Apply filters from query parameters
+        queryset = self._apply_product_filters(queryset, request.query_params)
 
-        serializer = ProductListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, ProductListSerializer)
+
+    def _apply_product_filters(self, queryset, query_params):
+        """Apply common product filters to queryset."""
+        in_stock = query_params.get("in_stock")
+        min_price = query_params.get("min_price")
+        max_price = query_params.get("max_price")
+
+        if in_stock and in_stock.lower() == "true":
+            queryset = queryset.filter(stock_quantity__gt=0)
+
+        if min_price:
+            try:
+                queryset = queryset.filter(price__amount__gte=Decimal(min_price))
+            except (ValueError, InvalidOperation):
+                pass
+
+        if max_price:
+            try:
+                queryset = queryset.filter(price__amount__lte=Decimal(max_price))
+            except (ValueError, InvalidOperation):
+                pass
+
+        return queryset
 
 
-# @extend_schema_view(
-#     list=extend_schema(
-#         summary="List products",
-#         description="Retrieve a list of products with advanced filtering and search capabilities.",
-#         parameters=[
-#             OpenApiParameter(
-#                 name="category",
-#                 description="Filter by category ID",
-#                 required=False,
-#                 type=str,
-#             ),
-#             OpenApiParameter(
-#                 name="min_price",
-#                 description="Minimum price filter",
-#                 required=False,
-#                 type=float,
-#             ),
-#             OpenApiParameter(
-#                 name="max_price",
-#                 description="Maximum price filter",
-#                 required=False,
-#                 type=float,
-#             ),
-#             OpenApiParameter(
-#                 name="in_stock",
-#                 description="Filter by stock availability",
-#                 required=False,
-#                 type=bool,
-#             ),
-#             OpenApiParameter(
-#                 name="is_featured",
-#                 description="Filter by featured status",
-#                 required=False,
-#                 type=bool,
-#             ),
-#             OpenApiParameter(
-#                 name="search",
-#                 description="Search in product name, description, and SKU",
-#                 required=False,
-#                 type=str,
-#             ),
-#         ],
-#         tags=["Products"],
-#     ),
-#     retrieve=extend_schema(
-#         summary="Get product details",
-#         description="Retrieve detailed information about a specific product including images and specifications.",
-#         tags=["Products"],
-#     ),
-#     create=extend_schema(
-#         summary="Create product",
-#         description="Create a new product with images and specifications.",
-#         tags=["Products"],
-#     ),
-#     update=extend_schema(
-#         summary="Update product",
-#         description="Update an existing product with all related data.",
-#         tags=["Products"],
-#     ),
-#     partial_update=extend_schema(
-#         summary="Partial update product",
-#         description="Partially update an existing product.",
-#         tags=["Products"],
-#     ),
-#     destroy=extend_schema(
-#         summary="Delete product",
-#         description="Soft delete a product.",
-#         tags=["Products"],
-#     ),
-# )
-class ProductViewSet(BaseViewSet):
+@extend_schema(tags=["Products"])
+class ProductViewSet(BaseViewSet, BaseProductCategoryMixin):
     """
     ViewSet for managing products.
 
@@ -688,22 +632,7 @@ class ProductViewSet(BaseViewSet):
         """Get all featured products."""
         queryset = self.get_queryset().filter(is_featured=True)
         queryset = self.filter_queryset(queryset)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ProductListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ProductListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, ProductListSerializer)
 
     @extend_schema(
         summary="Get low stock products",
@@ -728,7 +657,7 @@ class ProductViewSet(BaseViewSet):
         },
         tags=["Products", "Inventory"],
     )
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], url_path="low-stock")
     def low_stock(self, request):
         """Get all products with low stock."""
         queryset = self.get_queryset().filter(
@@ -746,22 +675,7 @@ class ProductViewSet(BaseViewSet):
                 pass  # Use default threshold if invalid
 
         queryset = self.filter_queryset(queryset)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ProductListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ProductListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return self._get_paginated_response(queryset, request, ProductListSerializer)
 
     @extend_schema(
         summary="Update product inventory",
@@ -778,30 +692,13 @@ class ProductViewSet(BaseViewSet):
     @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
     def inventory(self, request, pk=None):
         """Update product inventory."""
-        product = self.get_object()
-        serializer = ProductInventorySerializer(
-            product,
-            data=request.data,
-            partial=True,
-            context={"request": request},
+        return self._update_product_with_logging(
+            request,
+            pk,
+            ProductInventorySerializer,
+            "product_inventory_updated",
+            "stock_quantity",
         )
-
-        if serializer.is_valid():
-            with transaction.atomic():
-                serializer.save()
-
-                # Log inventory update
-                logger.info(
-                    "product_inventory_updated",
-                    product_id=product.id,
-                    product_name=product.name,
-                    new_stock=serializer.validated_data.get("stock_quantity"),
-                    user_id=request.user.id if request.user.is_authenticated else None,
-                )
-
-            return Response(serializer.data)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         summary="Update product pricing",
@@ -815,20 +712,19 @@ class ProductViewSet(BaseViewSet):
         },
         tags=["Products", "Pricing"],
     )
-    @action(
-        detail=True,
-        methods=["patch"],
-        permission_classes=[IsAuthenticated],
-    )
-    @action(
-        detail=True,
-        methods=["patch"],
-        permission_classes=[IsAuthenticated],
-    )
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
     def pricing(self, request, pk=None):
         """Update product pricing."""
+        return self._update_product_with_logging(
+            request, pk, ProductPricingSerializer, "product_pricing_updated", "price"
+        )
+
+    def _update_product_with_logging(
+        self, request, pk, serializer_class, log_event, log_field
+    ):
+        """Common method to update product fields with logging."""
         product = self.get_object()
-        serializer = ProductPricingSerializer(
+        serializer = serializer_class(
             product,
             data=request.data,
             partial=True,
@@ -839,12 +735,12 @@ class ProductViewSet(BaseViewSet):
             with transaction.atomic():
                 serializer.save()
 
-                # Log pricing update
+                # Log the update
                 logger.info(
-                    "product_pricing_updated",
+                    log_event,
                     product_id=product.id,
                     product_name=product.name,
-                    new_price=serializer.validated_data.get("price"),
+                    **{f"new_{log_field}": serializer.validated_data.get(log_field)},
                     user_id=request.user.id if request.user.is_authenticated else None,
                 )
 
@@ -1013,56 +909,41 @@ class ProductViewSet(BaseViewSet):
         queryset = queryset.filter(search_query).distinct()
 
         # Apply additional filters with proper error handling
+        queryset = self._apply_search_filters(queryset, request.query_params)
 
-        category_id = request.query_params.get("category")
+        # Apply ordering
+        queryset = queryset.order_by("-is_featured", "name")
+
+        return self._get_paginated_response(queryset, request, ProductListSerializer)
+
+    def _apply_search_filters(self, queryset, query_params):
+        """Apply search-specific filters to queryset."""
+        category_id = query_params.get("category")
         if category_id:
             try:
                 queryset = queryset.filter(category_id=category_id)
             except (ValueError, ValidationError):
                 logger.warning(f"Invalid category ID: {category_id}")
 
-        min_price = request.query_params.get("min_price")
+        min_price = query_params.get("min_price")
         if min_price:
             try:
                 min_price_decimal = Decimal(min_price)
                 queryset = queryset.filter(price__amount__gte=min_price_decimal)
             except (InvalidOperation, ValueError, TypeError) as e:
                 logger.warning(f"Invalid min_price parameter: {min_price}, error: {e}")
-                return Response(
-                    {"error": "Invalid min_price parameter. Must be a valid number."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                # Note: We can't return Response here, so we just log and continue
 
-        max_price = request.query_params.get("max_price")
+        max_price = query_params.get("max_price")
         if max_price:
             try:
                 max_price_decimal = Decimal(max_price)
                 queryset = queryset.filter(price__amount__lte=max_price_decimal)
             except (InvalidOperation, ValueError, TypeError) as e:
                 logger.warning(f"Invalid max_price parameter: {max_price}, error: {e}")
-                return Response(
-                    {"error": "Invalid max_price parameter. Must be a valid number."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                # Note: We can't return Response here, so we just log and continue
 
-        # Apply ordering
-        queryset = queryset.order_by("-is_featured", "name")
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ProductListSerializer(
-                page,
-                many=True,
-                context={"request": request},
-            )
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ProductListSerializer(
-            queryset,
-            many=True,
-            context={"request": request},
-        )
-        return Response(serializer.data)
+        return queryset
 
 
 @extend_schema_view(
@@ -1092,6 +973,7 @@ class ProductViewSet(BaseViewSet):
         tags=["Product Images"],
     ),
 )
+@extend_schema(tags=["Product Images"])
 class ProductImageViewSet(BaseViewSet):
     """
     ViewSet for managing product images.
@@ -1130,7 +1012,7 @@ class ProductImageViewSet(BaseViewSet):
         },
         tags=["Product Images"],
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="set-primary")
     def set_primary(self, request, pk=None):
         """Set image as primary for the product."""
         image = self.get_object()
@@ -1190,6 +1072,7 @@ class ProductImageViewSet(BaseViewSet):
         tags=["Product Specifications"],
     ),
 )
+@extend_schema(tags=["Product Specifications"])
 class ProductSpecificationViewSet(BaseViewSet):
     """
     ViewSet for managing product specifications.
@@ -1224,6 +1107,7 @@ class ProductSpecificationViewSet(BaseViewSet):
         tags=["Public API"],
     ),
 )
+@extend_schema(tags=["Public API"])
 class PublicCategoryViewSet(BaseReadOnlyViewSet):
     """
     Public read-only ViewSet for categories.
@@ -1285,6 +1169,7 @@ class PublicCategoryViewSet(BaseReadOnlyViewSet):
         tags=["Public API"],
     ),
 )
+@extend_schema(tags=["Public API"])
 class PublicProductViewSet(BaseReadOnlyViewSet):
     """
     Public read-only ViewSet for products.
@@ -1499,6 +1384,7 @@ class PublicProductViewSet(BaseReadOnlyViewSet):
         tags=["Product Reviews"],
     ),
 )
+@extend_schema(tags=["Product Reviews"])
 class ProductReviewViewSet(BaseViewSet):
     """
     ViewSet for managing product reviews.

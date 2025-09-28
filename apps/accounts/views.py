@@ -16,25 +16,28 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.openapi import OpenApiExample
-from drf_spectacular.utils import (OpenApiResponse, extend_schema,
-                                   extend_schema_view)
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.token_blacklist.models import (BlacklistedToken,
-                                                             OutstandingToken)
+from rest_framework_simplejwt.token_blacklist.models import (
+    BlacklistedToken,
+    OutstandingToken,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts import serializers
 from apps.accounts.models import User
-from apps.accounts.serializers import (PasswordChangeSerializer,
-                                       PasswordResetConfirmSerializer,
-                                       PasswordResetSerializer,
-                                       UserLoginSerializer,
-                                       UserProfileSerializer,
-                                       UserRegistrationSerializer)
+from apps.accounts.serializers import (
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetSerializer,
+    UserLoginSerializer,
+    UserProfileSerializer,
+    UserRegistrationSerializer,
+)
 from apps.accounts.tasks import send_verification_email
 from apps.core.throttling import CreateAccountRateThrottle, LoginRateThrottle
 from apps.core.views import BaseViewSet
@@ -43,6 +46,84 @@ logger = structlog.get_logger(__name__)
 
 # HTTP status codes as constants
 HTTP_200_OK = status.HTTP_200_OK
+
+
+class BaseAuthViewMixin:
+    """Base mixin for common authentication functionality."""
+
+    def _get_client_info(self, request):
+        """Extract client information from request."""
+        return {
+            "ip_address": request.META.get("REMOTE_ADDR"),
+            "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+        }
+
+    def _handle_serializer_validation(
+        self, request, serializer, success_handler, error_message
+    ):
+        """Common method to handle serializer validation with error handling."""
+        try:
+            if serializer.is_valid():
+                return success_handler(serializer, request)
+
+            logger.warning(
+                f"{error_message}: {serializer.errors}",
+                extra={
+                    "ip_address": request.META.get("REMOTE_ADDR"),
+                    "errors": serializer.errors,
+                },
+            )
+
+            return Response(
+                {
+                    "message": _(error_message),
+                    "errors": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Unexpected error: {e}",
+                exc_info=True,
+                extra={"ip_address": request.META.get("REMOTE_ADDR")},
+            )
+
+            return Response(
+                {
+                    "message": _("An unexpected error occurred. Please try again."),
+                    "error": "operation_failed",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _send_email_notification(self, user, email_type, **kwargs):
+        """Send email notifications based on type."""
+        email_tasks = {
+            "verification": send_verification_email,
+        }
+
+        if email_type in email_tasks:
+            email_tasks[email_type].delay(user.id)
+        elif email_type == "password_reset":
+            self._send_password_reset_email(user, **kwargs)
+
+
+class EmailVerificationMixin:
+    """Mixin for email verification functionality."""
+
+    def _verify_email_token(self, uid, token):
+        """Verify email token and return user if valid."""
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return None
+
+        if not default_token_generator.check_token(user, token):
+            return None
+
+        return user
 
 
 @extend_schema_view(
@@ -147,7 +228,7 @@ HTTP_200_OK = status.HTTP_200_OK
         ],
     ),
 )
-class UserRegistrationView(APIView):
+class UserRegistrationView(APIView, BaseAuthViewMixin):
     """
     API endpoint for user registration.
 
@@ -190,73 +271,44 @@ class UserRegistrationView(APIView):
         - 400: Validation errors
         - 429: Too many registration attempts
         """
-        try:
-            serializer = UserRegistrationSerializer(data=request.data)
 
-            if serializer.is_valid():
-                user = serializer.save()
+        def success_handler(serializer, request):
+            user = serializer.save()
 
-                # Log successful registration
-                logger.info(
-                    f"New user registered: {user.username}",
-                    extra={
-                        "user_id": str(user.id),
-                        "email": user.email,
-                        "ip_address": request.META.get("REMOTE_ADDR"),
-                        "user_agent": request.META.get("HTTP_USER_AGENT", ""),
-                    },
-                )
-
-                # Return success response without sensitive data
-                response_data = {
-                    "message": "Account created successfully. Please check your email to verify your account.",
-                    "user": {
-                        "id": str(user.id),
-                        "username": user.username,
-                        "email": user.email,
-                        "full_name": user.full_name,
-                    },
-                    "next_step": "email_verification",
-                }
-
-                return Response(response_data, status=status.HTTP_201_CREATED)
-
-            # Log registration failures
-            logger.warning(
-                f"User registration failed: {serializer.errors}",
+            # Log successful registration
+            logger.info(
+                f"New user registered: {user.username}",
                 extra={
-                    "ip_address": request.META.get("REMOTE_ADDR"),
-                    "errors": serializer.errors,
+                    "user_id": str(user.id),
+                    "email": user.email,
+                    **self._get_client_info(request),
                 },
             )
 
-            return Response(
-                {
-                    "message": _(
-                        "Registration failed. Please check the errors below.",
-                    ),
-                    "errors": serializer.errors,
+            # Return success response without sensitive data
+            response_data = {
+                "message": "Account created successfully. Please check your email to verify your account.",
+                "user": {
+                    "id": str(user.id),
+                    "username": user.username,
+                    "email": user.email,
+                    "full_name": user.full_name,
                 },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+                "next_step": "email_verification",
+            }
 
-        except Exception as e:
-            logger.error(
-                f"Unexpected error during registration: {e}",
-                exc_info=True,
-                extra={"ip_address": request.META.get("REMOTE_ADDR")},
-            )
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
-            return Response(
-                {
-                    "message": _("An unexpected error occurred. Please try again."),
-                    "error": "registration_failed",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        serializer = UserRegistrationSerializer(data=request.data)
+        return self._handle_serializer_validation(
+            request,
+            serializer,
+            success_handler,
+            "Registration failed. Please check the errors below.",
+        )
 
 
-class UserLoginView(APIView):
+class UserLoginView(APIView, BaseAuthViewMixin):
     """
     API view for user login with JWT token generation.
     Supports username or email login.
@@ -325,8 +377,7 @@ class UserLoginView(APIView):
                 f"User logged in: {user.username}",
                 extra={
                     "user_id": str(user.id),
-                    "ip_address": request.META.get("REMOTE_ADDR"),
-                    "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+                    **self._get_client_info(request),
                 },
             )
 
@@ -335,7 +386,7 @@ class UserLoginView(APIView):
         except (User.DoesNotExist, serializers.ValidationError) as e:
             logger.warning(
                 "Login failed",
-                extra={"error": str(e), "ip_address": request.META.get("REMOTE_ADDR")},
+                extra={"error": str(e), **self._get_client_info(request)},
             )
             return Response(
                 {"non_field_errors": ["Invalid email or password."]},
@@ -344,7 +395,7 @@ class UserLoginView(APIView):
         except Exception as e:
             logger.error(
                 "Unexpected error during login",
-                extra={"error": str(e), "ip_address": request.META.get("REMOTE_ADDR")},
+                extra={"error": str(e), **self._get_client_info(request)},
                 exc_info=True,
             )
             return Response(
@@ -353,7 +404,7 @@ class UserLoginView(APIView):
             )
 
 
-class UserLogoutView(APIView):
+class UserLogoutView(APIView, BaseAuthViewMixin):
     """
     API view for user logout.
     Blacklists the refresh token to prevent reuse.
@@ -424,7 +475,7 @@ class UserLogoutView(APIView):
                 "User logged out successfully",
                 user_id=str(request.user.id),
                 username=request.user.username,
-                ip_address=request.META.get("REMOTE_ADDR"),
+                **self._get_client_info(request),
             )
 
             return Response(
@@ -444,83 +495,135 @@ class UserLogoutView(APIView):
             )
 
 
+class BaseUserActionMixin:
+    """Mixin for common user actions."""
+
+    def _set_user_active_status(self, request, user_id, activate=True):
+        """Common method to activate/deactivate users."""
+        user = self.get_object()
+        action_word = "active" if activate else "inactive"
+
+        if user.is_active == activate:
+            return Response(
+                {"detail": f"User is already {action_word}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_active = activate
+        user.save(update_fields=["is_active", "updated_at"])
+
+        logger.info(
+            f"User account {action_word} by admin: {user.email}",
+            extra={
+                "admin_id": str(request.user.id),
+                "user_id": str(user.id),
+                **self._get_client_info(request),
+            },
+        )
+
+        return Response(
+            {"detail": f"User account {action_word}d successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+@extend_schema(tags=["User Profile Management (Admin Only)"])
+class AdminUserViewSet(BaseViewSet, BaseUserActionMixin, BaseAuthViewMixin):
+    """
+    Admin-only ViewSet for user management.
+    Provides CRUD operations for managing users (admin only).
+    """
+
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAdminUser]
+    queryset = User.objects.all()
+    lookup_field = "id"
+    lookup_url_kwarg = "id"
+
+    @extend_schema(
+        methods=["POST"],
+        summary="Activate user account",
+        description="Activate a user account (admin only)",
+        responses={
+            200: OpenApiResponse(description="User activated successfully"),
+            400: OpenApiResponse(description="User is already active"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+    )
+    @action(detail=True, methods=["post"], url_path="activate")
+    def activate_user(self, request, user_id=None):
+        """Activate a user account (admin only)."""
+        return self._set_user_active_status(request, user_id, activate=True)
+
+    @extend_schema(
+        methods=["POST"],
+        summary="Deactivate user account",
+        description="Deactivate a user account (admin only)",
+        responses={
+            200: OpenApiResponse(description="User deactivated successfully"),
+            400: OpenApiResponse(description="User is already inactive"),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Admin permission required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+    )
+    @action(detail=True, methods=["post"], url_path="deactivate")
+    def deactivate_user(self, request, user_id=None):
+        """Deactivate a user account (admin only)."""
+        return self._set_user_active_status(request, user_id, activate=False)
+
+
+class PasswordManagementMixin(BaseAuthViewMixin):
+    """Mixin for password management functionality."""
+
+    def _invalidate_user_tokens(self, user):
+        """Invalidate all user's refresh tokens."""
+        tokens = OutstandingToken.objects.filter(user=user)
+        for token in tokens:
+            try:
+                refresh = RefreshToken(token.token)
+                refresh.blacklist()
+                BlacklistedToken.objects.get_or_create(token=token)
+            except Exception as e:
+                logger.warning(f"Failed to blacklist token: {e}")
+                continue
+
+    def _send_password_reset_email(self, user):
+        """Send password reset email."""
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+        # Build reset URL (frontend URL)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+
+        # Email subject and message
+        subject = "Password Reset Request"
+        message = render_to_string(
+            "emails/password_reset_email.html",
+            {
+                "user": user,
+                "reset_url": reset_url,
+                "site_name": settings.SITE_NAME,
+            },
+        )
+
+        # Send email
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message=message,
+            fail_silently=False,
+        )
+
+
 @extend_schema(tags=["User Profile"])
-@extend_schema_view(
-    list=extend_schema(
-        summary="List user profiles",
-        description="List all user profiles (admin only) or the current user's profile.",
-        responses={
-            200: UserProfileSerializer(many=True),
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to perform this action",
-            ),
-        },
-    ),
-    retrieve=extend_schema(
-        summary="Retrieve user profile",
-        description="Retrieve a specific user profile by ID (admin only) or the current user's profile.",
-        responses={
-            200: UserProfileSerializer,
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to view this profile",
-            ),
-            404: OpenApiResponse(description="Profile not found"),
-        },
-    ),
-    update=extend_schema(
-        summary="Update user profile",
-        description="Update a user profile (admin can update any, users can only update their own).",
-        request=UserProfileSerializer,
-        responses={
-            200: UserProfileSerializer,
-            400: OpenApiResponse(description="Invalid input data"),
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to update this profile",
-            ),
-            404: OpenApiResponse(description="Profile not found"),
-        },
-    ),
-    partial_update=extend_schema(
-        summary="Partially update user profile",
-        description="Partially update a user profile (admin can update any, users can only update their own).",
-        request=UserProfileSerializer(partial=True),
-        responses={
-            200: UserProfileSerializer,
-            400: OpenApiResponse(description="Invalid input data"),
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to update this profile",
-            ),
-            404: OpenApiResponse(description="Profile not found"),
-        },
-    ),
-    destroy=extend_schema(
-        summary="Delete user profile",
-        description="Delete a user profile (admin only).",
-        responses={
-            204: OpenApiResponse(description="Profile deleted successfully"),
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to delete this profile",
-            ),
-            404: OpenApiResponse(description="Profile not found"),
-        },
-    ),
-)
-class UserProfileViewSet(BaseViewSet):
+class UserProfileViewSet(
+    BaseViewSet, PasswordManagementMixin, EmailVerificationMixin, BaseAuthViewMixin
+):
     """
     ViewSet for user profile management.
     Provides CRUD operations for user profiles with proper permissions.
@@ -531,6 +634,16 @@ class UserProfileViewSet(BaseViewSet):
         permissions.IsAuthenticated,
     ]
     queryset = User.objects.none()
+
+    def check_object_permissions(self, request, obj):
+        """Ensure users can only access their own profile."""
+        super().check_object_permissions(request, obj)
+        if obj != request.user:
+            self.permission_denied(
+                request,
+                message="You do not have permission to perform this action.",
+                code=status.HTTP_403_FORBIDDEN,
+            )
 
     def get_queryset(self):
         """
@@ -590,7 +703,7 @@ class UserProfileViewSet(BaseViewSet):
             f"Profile updated for user: {instance.username}",
             extra={
                 "user_id": str(instance.id),
-                "ip_address": request.META.get("REMOTE_ADDR"),
+                **self._get_client_info(request),
                 "updated_fields": list(request.data.keys()),
             },
         )
@@ -681,62 +794,6 @@ class UserProfileViewSet(BaseViewSet):
             )
 
     @extend_schema(
-        methods=["PUT", "PATCH"],
-        summary="Update current user profile",
-        description="Update the currently authenticated user's profile.",
-        request=UserProfileSerializer,
-        responses={
-            200: UserProfileSerializer,
-            400: OpenApiResponse(description="Invalid input data"),
-            401: OpenApiResponse(
-                description="Authentication credentials were not provided",
-            ),
-        },
-    )
-    @action(detail=False, methods=["put", "patch"], url_path="update-profile")
-    def update_profile(self, request):
-        """
-        Update current user's profile.
-        """
-        try:
-            user = request.user
-            serializer = self.get_serializer(
-                user,
-                data=request.data,
-                partial=request.method == "PATCH",
-            )
-
-            if serializer.is_valid():
-                serializer.save()
-
-                logger.info(
-                    f"Profile updated for user: {user.username}",
-                    extra={"user_id": str(user.id)},
-                )
-
-                return Response(
-                    {
-                        "message": _("Profile updated successfully"),
-                        "user": serializer.data,
-                    },
-                )
-
-            return Response(
-                {
-                    "message": _("Profile update failed"),
-                    "errors": serializer.errors,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        except Exception as e:
-            logger.error(f"Error updating profile: {e}")
-            return Response(
-                {"message": _("An error occurred while updating profile")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @extend_schema(
         methods=["POST"],
         summary="Change password",
         description="Change the current user's password.",
@@ -786,7 +843,6 @@ class UserProfileViewSet(BaseViewSet):
         - 500: Server error
         """
         try:
-            # Use PasswordChangeSerializer explicitly
             serializer = PasswordChangeSerializer(
                 data=request.data,
                 context={"request": request},
@@ -813,22 +869,12 @@ class UserProfileViewSet(BaseViewSet):
                 f"Password changed for user: {user.username}",
                 extra={
                     "user_id": str(user.id),
-                    "ip_address": request.META.get("REMOTE_ADDR"),
+                    **self._get_client_info(request),
                 },
             )
 
             # Invalidate all user's refresh tokens
-
-            # Get all outstanding tokens for the user
-            tokens = OutstandingToken.objects.filter(user=user)
-            for token in tokens:
-                try:
-                    refresh = RefreshToken(token.token)
-                    refresh.blacklist()
-                    BlacklistedToken.objects.get_or_create(token=token)
-                except Exception as e:
-                    logger.warning(f"Failed to blacklist token: {e}")
-                    continue
+            self._invalidate_user_tokens(user)
 
             return Response(
                 {
@@ -846,7 +892,7 @@ class UserProfileViewSet(BaseViewSet):
                 exc_info=True,
                 extra={
                     "user_id": str(request.user.id),
-                    "ip_address": request.META.get("REMOTE_ADDR"),
+                    **self._get_client_info(request),
                 },
             )
             return Response(
@@ -1012,14 +1058,8 @@ class UserProfileViewSet(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            try:
-                # Decode user ID from UID
-                user_id = force_str(urlsafe_base64_decode(uid))
-                user = User.objects.get(pk=user_id)
-            except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-                user = None
-
-            if user is None or not default_token_generator.check_token(user, token):
+            user = self._verify_email_token(uid, token)
+            if user is None:
                 return Response(
                     {"message": _("Invalid or expired verification link")},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -1097,34 +1137,7 @@ class UserProfileViewSet(BaseViewSet):
 
                 try:
                     user = User.objects.get(email__iexact=email)
-
-                    # Generate password reset token
-                    token = default_token_generator.make_token(user)
-                    uid = urlsafe_base64_encode(force_bytes(user.pk))
-
-                    # Build reset URL (frontend URL)
-                    reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
-
-                    # Email subject and message
-                    subject = "Password Reset Request"
-                    message = render_to_string(
-                        "emails/password_reset_email.html",
-                        {
-                            "user": user,
-                            "reset_url": reset_url,
-                            "site_name": settings.SITE_NAME,
-                        },
-                    )
-
-                    # Send email
-                    send_mail(
-                        subject=subject,
-                        message=message,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[user.email],
-                        html_message=message,
-                        fail_silently=False,
-                    )
+                    self._send_password_reset_email(user)
 
                     logger.info(
                         f"Password reset requested for: {email}",
@@ -1205,120 +1218,6 @@ class UserProfileViewSet(BaseViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
-        methods=["POST"],
-        summary="Activate user (Admin only)",
-        description="Activate a user account (admin only).",
-        responses={
-            200: OpenApiResponse(
-                description="User activated successfully",
-                examples=[
-                    OpenApiExample(
-                        "Success",
-                        value={"detail": "User activated successfully"},
-                    ),
-                ],
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to perform this action",
-            ),
-            404: OpenApiResponse(description="User not found"),
-        },
-    )
-    @action(
-        detail=True,
-        methods=["post"],
-        url_path="activate-user",
-        permission_classes=[permissions.IsAdminUser],
-    )
-    def activate_user(self, request, pk=None):
-        """
-        Activate a user account (admin only).
-        """
-        try:
-            user = self.get_object()
-            user.activate_account()
-
-            logger.info(
-                f"User account activated by admin: {user.username}",
-                extra={"user_id": user.pk, "admin_id": request.user.id},
-            )
-
-            return Response(
-                {"detail": "User account activated successfully"},
-                status=status.HTTP_200_OK,
-            )
-        except User.DoesNotExist:
-            return Response(
-                {"detail": "User not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:
-            logger.error(
-                f"Error activating user account: {e!s}",
-                exc_info=True,
-                extra={"user_id": pk, "admin_id": request.user.id},
-            )
-            return Response(
-                {"detail": "An error occurred while activating the account"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @extend_schema(
-        methods=["POST"],
-        summary="Suspend user (Admin only)",
-        description="Suspend a user account (admin only).",
-        responses={
-            200: OpenApiResponse(
-                description="User suspended successfully",
-                examples=[
-                    OpenApiExample(
-                        "Success",
-                        value={"detail": "User suspended successfully"},
-                    ),
-                ],
-            ),
-            403: OpenApiResponse(
-                description="You do not have permission to perform this action",
-            ),
-            404: OpenApiResponse(description="User not found"),
-        },
-    )
-    @action(
-        detail=True,
-        methods=["post"],
-        url_path="suspend-user",
-        permission_classes=[permissions.IsAdminUser],
-    )
-    def suspend_user(self, request, pk=None):
-        """
-        Suspend a user account (admin only).
-        """
-        try:
-            user = self.get_object()
-
-            if user == request.user:
-                return Response(
-                    {"message": _("You cannot suspend your own account")},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            user.suspend_account()
-
-            logger.info(
-                f"User account suspended by admin: {user.username}",
-                extra={"user_id": str(user.pk), "admin_id": str(request.user.id)},
-            )
-
-            return Response({"message": f"User {user.username} has been suspended"})
-
-        except Exception as e:
-            logger.error(f"Error suspending user: {e}")
-            return Response(
-                {"message": _("Error suspending user account")},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
 
 @extend_schema(
     tags=["Authentication"],
@@ -1396,7 +1295,7 @@ class UserProfileViewSet(BaseViewSet):
         ),
     },
 )
-class CustomTokenRefreshView(TokenRefreshView):
+class CustomTokenRefreshView(TokenRefreshView, BaseAuthViewMixin):
     """
     Custom token refresh view with additional logging.
     """

@@ -8,18 +8,21 @@ Defines API endpoints for user authentication and profile management.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.accounts.views import (CustomTokenRefreshView, UserLoginView,
-                                 UserLogoutView, UserProfileViewSet,
-                                 UserRegistrationView)
+from apps.accounts.views import (
+    AdminUserViewSet,
+    CustomTokenRefreshView,
+    UserLoginView,
+    UserLogoutView,
+    UserProfileViewSet,
+    UserRegistrationView,
+)
 
 # Create router for ViewSets
 router = DefaultRouter()
 router.register(r"profiles", UserProfileViewSet, basename="user-profile")
-router.register(
-    r"users",
-    UserProfileViewSet,
-    basename="user",
-)  # For admin user management
+# Admin router
+admin_router = DefaultRouter()
+admin_router.register(r"users", AdminUserViewSet, basename="admin-user")
 
 # Add app_name for namespace
 app_name = "accounts"
@@ -35,9 +38,9 @@ urlpatterns = [
         "me/",
         UserProfileViewSet.as_view(
             {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
+                "get": "me",
+                "put": "update_me",
+                "patch": "update_me",
             },
         ),
         name="user-profile-me",
@@ -69,3 +72,10 @@ urlpatterns = [
     # Include router URLs last
     path("", include(router.urls)),
 ]
+
+# Admin endpoints (require admin permissions)
+admin_urls = [
+    path("admin/", include(admin_router.urls)),
+]
+
+urlpatterns += admin_urls
