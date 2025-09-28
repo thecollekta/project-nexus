@@ -12,6 +12,8 @@ from typing import Any, ClassVar
 
 from django.conf import settings
 from django.utils.text import slugify
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
@@ -326,10 +328,12 @@ class ProductListSerializer(BaseModelSerializer):
         """Get count of product images."""
         return obj.images.filter(is_active=True).count()
 
-    def get_price(self, obj):
+    @extend_schema_field(OpenApiTypes.DECIMAL)
+    def get_price(self, obj) -> Decimal:
         return {"amount": str(obj.price.amount), "currency": str(obj.price.currency)}
 
-    def get_compare_at_price(self, obj):
+    @extend_schema_field(OpenApiTypes.DECIMAL)
+    def get_compare_at_price(self, obj) -> Decimal | None:
         if obj.compare_at_price:
             return {
                 "amount": str(obj.compare_at_price.amount),
@@ -419,7 +423,8 @@ class ProductDetailSerializer(BaseModelSerializer):
             "reviews",
         ]
 
-    def get_cost_price(self, obj):
+    @extend_schema_field(OpenApiTypes.DECIMAL)
+    def get_cost_price(self, obj) -> Decimal | None:
         if obj.cost_price:
             return {
                 "amount": str(obj.cost_price.amount),
@@ -880,6 +885,18 @@ class ProductPricingSerializer(BaseModelSerializer):
                     "currency": str(money.currency),
                 }
         return representation
+
+
+class StockAdjustmentSerializer(serializers.Serializer):
+    """Serializer for stock adjustment requests."""
+
+    quantity = serializers.IntegerField(
+        required=True,
+        help_text="Quantity to adjust (positive to increase, negative to decrease)",
+    )
+    reason = serializers.CharField(
+        required=False, allow_blank=True, help_text="Reason for the stock adjustment"
+    )
 
 
 # Serializer selector utility

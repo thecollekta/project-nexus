@@ -320,12 +320,6 @@ class Product(AuditStampedModelBase, PriceMixin):
         max_digits=10,
         decimal_places=2,
         default_currency="GHS",
-        validators=[
-            MinValueValidator(Decimal("0.01")),
-            MaxValueValidator(Decimal("9999999.99")),
-        ],
-        help_text=_("Product price"),
-        db_index=True,
     )
 
     compare_at_price = MoneyField(

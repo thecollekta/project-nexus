@@ -341,11 +341,11 @@ class ProductAdmin(admin.ModelAdmin):
 
     def price_display(self, obj):
         """Display price with discount information."""
-        price_html = f"${obj.price.amount}"
+        price_html = f"¢{obj.price.amount}"
 
         if obj.compare_at_price and obj.compare_at_price.amount > obj.price.amount:
             discount = obj.discount_percentage
-            price_html += f" <small style='color: red;'>({discount}% off from ${obj.compare_at_price.amount})</small>"
+            price_html += f" <small style='color: red;'>({discount}% off from ¢{obj.compare_at_price.amount})</small>"
 
         return format_html(price_html)
 

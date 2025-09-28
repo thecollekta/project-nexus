@@ -80,18 +80,8 @@ class CategoryFilter(django_filters.FilterSet):
 
     class Meta:
         model = Category
-        fields: ClassVar[list] = [
-            "is_active",
-            "is_featured",
-            "parent",
-            "parent_isnull",
-            "name_contains",
-            "has_products",
-            "has_children",
-            "level",
-            "created_after",
-            "created_before",
-        ]
+        fields = "__all__"
+        exclude = ["image"]
 
     def filter_by_level(
         self,
@@ -185,19 +175,16 @@ class ProductFilter(django_filters.FilterSet):
 
     # Price filters
     price = django_filters.RangeFilter(
-        help_text="Filter by exact price range",
+        method="filter_price_range",
+        help_text="Filter by exact price range (format: min,max)",
     )
 
     min_price = django_filters.NumberFilter(
-        field_name="price__amount",
-        lookup_expr="gte",
-        help_text="Filter by minimum price",
+        method="filter_min_price", help_text="Filter by minimum price"
     )
 
     max_price = django_filters.NumberFilter(
-        field_name="price__amount",
-        lookup_expr="lte",
-        help_text="Filter by maximum price",
+        method="filter_max_price", help_text="Filter by maximum price"
     )
 
     price_range = django_filters.CharFilter(
@@ -388,13 +375,57 @@ class ProductFilter(django_filters.FilterSet):
 
         return queryset.filter(category__id__in=category_ids)
 
+    def filter_min_price(self, queryset, name, value):
+        """Filter by minimum price - handle MoneyField correctly."""
+        if value:
+            try:
+                # Convert to Decimal for proper comparison
+                min_price = Decimal(str(value))
+                # Filter on the amount part of the MoneyField
+                return queryset.filter(price_amount__gte=min_price)
+            except (InvalidOperation, ValueError, TypeError):
+                logger.warning(f"Invalid min_price value: {value}")
+        return queryset
+
+    def filter_max_price(self, queryset, name, value):
+        """Filter by maximum price - handle MoneyField correctly."""
+        if value:
+            try:
+                # Convert to Decimal for proper comparison
+                max_price = Decimal(str(value))
+                # Filter on the amount part of the MoneyField
+                return queryset.filter(price_amount__lte=max_price)
+            except (InvalidOperation, ValueError, TypeError):
+                logger.warning(f"Invalid max_price value: {value}")
+        return queryset
+
     def filter_price_range(
         self,
         queryset: QuerySet[Product],
         name: str,
         value: str,
     ) -> QuerySet[Product]:
-        """Filter products by price range with predefined ranges or custom range."""
+        """Filter by price range - handle MoneyField correctly."""
+        if value:
+            try:
+                start = value.start
+                stop = value.stop
+
+                if start is not None:
+                    start_decimal = Decimal(str(start))
+                    queryset = queryset.filter(price_amount__gte=start_decimal)
+
+                if stop is not None:
+                    stop_decimal = Decimal(str(stop))
+                    queryset = queryset.filter(price_amount__lte=stop_decimal)
+
+            except (InvalidOperation, ValueError, TypeError) as e:
+                logger.warning(f"Invalid price range: {value}, error: {e}")
+
+        return queryset
+
+    def filter_price_range_old(self, queryset, name, value):
+        """Fix the existing price_range filter method."""
         if not value:
             return queryset
 
@@ -408,9 +439,9 @@ class ProductFilter(django_filters.FilterSet):
 
         if value.lower() in predefined_ranges:
             min_price, max_price = predefined_ranges[value.lower()]
-            queryset = queryset.filter(price__amount__gte=min_price)
+            queryset = queryset.filter(price_amount__gte=min_price)
             if max_price:
-                queryset = queryset.filter(price__amount__lte=max_price)
+                queryset = queryset.filter(price_amount__lte=max_price)
             return queryset
 
         # Custom range format: "min,max"
@@ -424,12 +455,11 @@ class ProductFilter(django_filters.FilterSet):
                 max_price = Decimal(max_price_str) if max_price_str else None
 
                 if min_price is not None:
-                    queryset = queryset.filter(price__amount__gte=min_price)
+                    queryset = queryset.filter(price_amount__gte=min_price)
                 if max_price is not None:
-                    queryset = queryset.filter(price__amount__lte=max_price)
+                    queryset = queryset.filter(price_amount__lte=max_price)
         except (InvalidOperation, ValueError, TypeError) as e:
             logger.warning(f"Invalid price range format: {value}, error: {e}")
-            # Return original queryset instead of failing
 
         return queryset
 
@@ -489,12 +519,12 @@ class ProductFilter(django_filters.FilterSet):
 
         if value:
             return queryset.filter(
-                compare_at_price__isnull=False,
-                compare_at_price__amount__gt=models.F("price__amount"),
+                compare_at_price_amount__isnull=False,
+                compare_at_price_amount__gt=models.F("price_amount"),
             )
         return queryset.filter(
-            Q(compare_at_price__isnull=True)
-            | Q(compare_at_price__amount__lte=models.F("price__amount")),
+            Q(compare_at_price_amount__isnull=True)
+            | Q(compare_at_price_amount__lte=models.F("price_amount")),
         )
 
     def filter_discount_percentage(
@@ -515,26 +545,24 @@ class ProductFilter(django_filters.FilterSet):
 
         # Filter products with compare_at_price
         filtered_queryset = queryset.filter(
-            compare_at_price__isnull=False,
-            compare_at_price__amount__gt=models.F("price__amount"),
+            compare_at_price_amount__isnull=False,
+            compare_at_price_amount__gt=models.F("price_amount"),
         )
 
         # Calculate discount percentage and filter
-        # This is a simplified approach - for exact calculation, use raw SQL
         if min_discount is not None:
             filtered_queryset = filtered_queryset.annotate(
-                max_price_for_min_discount=models.F("compare_at_price__amount")
+                max_price_for_min_discount=models.F("compare_at_price_amount")
                 * (100 - min_discount)
                 / 100,
-            ).filter(price__amount__lte=models.F("max_price_for_min_discount"))
+            ).filter(price_amount__lte=models.F("max_price_for_min_discount"))
 
         if max_discount is not None:
-            # Products with at most max_discount percentage
             filtered_queryset = filtered_queryset.annotate(
-                min_price_for_max_discount=models.F("compare_at_price__amount")
+                min_price_for_max_discount=models.F("compare_at_price_amount")
                 * (100 - max_discount)
                 / 100,
-            ).filter(price__amount__gte=models.F("min_price_for_max_discount"))
+            ).filter(price_amount__gte=models.F("min_price_for_max_discount"))
 
         return filtered_queryset
 
@@ -630,7 +658,7 @@ class PriceRangeFilter(django_filters.Filter):
     """
 
     def filter(self, qs: QuerySet, value: str) -> QuerySet:
-        """Filter queryset by price range."""
+        """Filter queryset by price range with MoneyField support."""
         if not value:
             return qs
 
@@ -642,18 +670,7 @@ class PriceRangeFilter(django_filters.Filter):
 
         return qs
 
-    def _is_predefined_range(self, value: str) -> bool:
-        predefined_ranges = {
-            "under-25",
-            "25-50",
-            "50-100",
-            "100-200",
-            "200-500",
-            "over-500",
-        }
-        return value in predefined_ranges
-
-    def _filter_predefined_range(self, qs: QuerySet, value: str) -> QuerySet:
+    def _filter_predefined_range(self, qs, value):
         predefined_ranges = {
             "under-25": (None, Decimal("25")),
             "25-50": (Decimal("25"), Decimal("50")),
@@ -662,17 +679,18 @@ class PriceRangeFilter(django_filters.Filter):
             "200-500": (Decimal("200"), Decimal("500")),
             "over-500": (Decimal("500"), None),
         }
+
+        if value not in predefined_ranges:
+            return qs
+
         min_price, max_price = predefined_ranges[value]
         if min_price is not None:
-            qs = qs.filter(price__amount__gte=min_price)
+            qs = qs.filter(price_amount__gte=min_price)
         if max_price is not None:
-            qs = qs.filter(price__amount__lte=max_price)
+            qs = qs.filter(price_amount__lte=max_price)
         return qs
 
-    def _is_custom_range(self, value: str) -> bool:
-        return any(sep in value for sep in ["-", ",", ":"])
-
-    def _filter_custom_range(self, qs: QuerySet, value: str) -> QuerySet:
+    def _filter_custom_range(self, qs, value):
         separators = ["-", ",", ":"]
         for sep in separators:
             if sep in value:
@@ -682,10 +700,10 @@ class PriceRangeFilter(django_filters.Filter):
                     try:
                         if min_str.strip():
                             min_price = Decimal(min_str.strip())
-                            qs = qs.filter(price__amount__gte=min_price)
+                            qs = qs.filter(price_amount__gte=min_price)
                         if max_str.strip():
                             max_price = Decimal(max_str.strip())
-                            qs = qs.filter(price__amount__lte=max_price)
+                            qs = qs.filter(price_amount__lte=max_price)
                     except (InvalidOperation, ValueError, TypeError):
                         pass
                     break
@@ -749,22 +767,20 @@ def get_category_descendants(category_id: str) -> list[str]:
 
 
 def build_price_filter(min_price: str | None, max_price: str | None) -> Q:
-    """
-    Build a price filter Q object with validation.
-    """
+    """Build a price filter Q object with validation and MoneyField support."""
     filter_q = Q()
 
     try:
         if min_price:
             min_val = Decimal(str(min_price))
-            filter_q &= Q(price__amount__gte=min_val)
+            filter_q &= Q(price_amount__gte=min_val)
     except (InvalidOperation, ValueError):
         pass
 
     try:
         if max_price:
             max_val = Decimal(str(max_price))
-            filter_q &= Q(price__amount__lte=max_val)
+            filter_q &= Q(price_amount__lte=max_val)
     except (InvalidOperation, ValueError):
         pass
 

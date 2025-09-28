@@ -151,7 +151,7 @@ class Command(BaseCommand):
                 email=email,
                 defaults={
                     "username": f"user{i+1}",
-                    "first_name": f"Sample",
+                    "first_name": "Sample",
                     "last_name": f"User{i+1}",
                 },
             )

@@ -17,33 +17,43 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
-                                   extend_schema, extend_schema_view)
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import filters, permissions, serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from apps.core.pagination import (LargeResultsSetPagination,
-                                  StandardResultsSetPagination)
+from apps.core.pagination import LargeResultsSetPagination, StandardResultsSetPagination
 from apps.core.views import BaseReadOnlyViewSet, BaseViewSet
 from apps.products.filters import CategoryFilter, ProductFilter
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 from apps.products.permissions import IsOwnerOrReadOnly
-from apps.products.serializers import (CategoryDetailSerializer,
-                                       CategoryListSerializer,
-                                       CategorySerializerSelector,
-                                       ProductCreateUpdateSerializer,
-                                       ProductDetailSerializer,
-                                       ProductImageSerializer,
-                                       ProductInventorySerializer,
-                                       ProductListSerializer,
-                                       ProductPricingSerializer,
-                                       ProductReviewSerializer,
-                                       ProductSerializerSelector,
-                                       ProductSpecificationSerializer)
+from apps.products.serializers import (
+    CategoryDetailSerializer,
+    CategoryListSerializer,
+    CategorySerializerSelector,
+    ProductCreateUpdateSerializer,
+    ProductDetailSerializer,
+    ProductImageSerializer,
+    ProductInventorySerializer,
+    ProductListSerializer,
+    ProductPricingSerializer,
+    ProductReviewSerializer,
+    ProductSerializerSelector,
+    ProductSpecificationSerializer,
+    StockAdjustmentSerializer,
+)
 
 # Set up logging
 logger = structlog.get_logger(__name__)
@@ -845,20 +855,7 @@ class ProductViewSet(BaseViewSet):
     @extend_schema(
         summary="Adjust product stock",
         description="Increase or decrease product stock by a specific amount.",
-        request={
-            "type": "object",
-            "properties": {
-                "quantity": {
-                    "type": "integer",
-                    "description": "Quantity to adjust (positive to increase, negative to decrease)",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Reason for the stock adjustment",
-                },
-            },
-            "required": ["quantity"],
-        },
+        request=StockAdjustmentSerializer,
         responses={
             200: {
                 "type": "object",
@@ -881,6 +878,10 @@ class ProductViewSet(BaseViewSet):
     def adjust_stock(self, request, pk=None):
         """Adjust product stock quantity."""
         product = self.get_object()
+        serializer = StockAdjustmentSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             quantity_str = request.data.get("quantity", "0")

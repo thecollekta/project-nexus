@@ -1,9 +1,14 @@
 # apps/products/mixins.py
 
+"""
+Mixins for products app models.
+"""
+
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
 import structlog
+from django.core.exceptions import ValidationError
 from djmoney.money import Money
 from forex_python.converter import CurrencyRates, RatesNotAvailableError
 
@@ -142,3 +147,44 @@ class PriceMixin:
                 exc_info=True,
             )
             return None
+
+    def calculate_discount_percentage(self):
+        """Calculate discount percentage if compare_at_price exists."""
+        if (
+            hasattr(self, "compare_at_price")
+            and self.compare_at_price
+            and hasattr(self, "price")
+            and self.price
+        ):
+            if self.compare_at_price.amount > self.price.amount:
+                discount = self.compare_at_price.amount - self.price.amount
+                return (discount / self.compare_at_price.amount) * 100
+        return Decimal("0.00")
+
+    def calculate_profit_margin(self):
+        """Calculate profit margin if cost_price exists."""
+        if (
+            hasattr(self, "cost_price")
+            and self.cost_price
+            and hasattr(self, "price")
+            and self.price
+        ):
+            if self.price.amount > self.cost_price.amount:
+                profit = self.price.amount - self.cost_price.amount
+                return (profit / self.price.amount) * 100
+        return Decimal("0.00")
+
+    def validate_price_relationships(self):
+        """Validate price relationships."""
+        errors = []
+
+        if hasattr(self, "compare_at_price") and self.compare_at_price:
+            if self.compare_at_price.amount <= self.price.amount:
+                errors.append("Compare at price must be higher than regular price.")
+
+        if hasattr(self, "cost_price") and self.cost_price:
+            if self.cost_price.amount >= self.price.amount:
+                errors.append("Cost price should be lower than selling price.")
+
+        if errors:
+            raise ValidationError(errors)
