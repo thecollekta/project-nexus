@@ -27,3 +27,8 @@ CORS_ALLOW_CREDENTIALS = True
 REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] += [  # noqa: F405
     "rest_framework.renderers.BrowsableAPIRenderer",
 ]
+
+INSTALLED_APPS += ["debug_toolbar"]  # noqa: F405
+MIDDLEWARE += [  # noqa: F405
+    "debug_toolbar.middleware.DebugToolbarMiddleware"
+]  # For API requests

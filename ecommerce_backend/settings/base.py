@@ -108,7 +108,6 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "drf_spectacular_sidecar",  # Required for production schema collection
     "rest_framework_nested",
-    "debug_toolbar",
     "django_redis",
     "rest_framework",
     "rest_framework_simplejwt",
@@ -170,7 +169,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.gzip.GZipMiddleware",  # Compression
-    "debug_toolbar.middleware.DebugToolbarMiddleware",  # For API requests
 ]
 
 # Security headers
