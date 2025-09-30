@@ -12,9 +12,14 @@ from typing import ClassVar
 from django.contrib import admin
 from django.utils.html import format_html
 
-from apps.products.models import (Category, PriceHistory, Product,
-                                  ProductImage, ProductReview,
-                                  ProductSpecification)
+from apps.products.models import (
+    Category,
+    PriceHistory,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 
 
 @admin.register(Category)

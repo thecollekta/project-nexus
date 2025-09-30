@@ -11,10 +11,15 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 
-from apps.products.views import (CategoryViewSet, ProductImageViewSet,
-                                 ProductReviewViewSet,
-                                 ProductSpecificationViewSet, ProductViewSet,
-                                 PublicCategoryViewSet, PublicProductViewSet)
+from apps.products.views import (
+    CategoryViewSet,
+    ProductImageViewSet,
+    ProductReviewViewSet,
+    ProductSpecificationViewSet,
+    ProductViewSet,
+    PublicCategoryViewSet,
+    PublicProductViewSet,
+)
 
 # Main router for authenticated API endpoints
 router = DefaultRouter()

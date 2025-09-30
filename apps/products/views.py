@@ -17,34 +17,43 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
-                                   extend_schema, extend_schema_view)
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import filters, permissions, serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from apps.core.pagination import (LargeResultsSetPagination,
-                                  StandardResultsSetPagination)
+from apps.core.pagination import LargeResultsSetPagination, StandardResultsSetPagination
 from apps.core.views import BaseReadOnlyViewSet, BaseViewSet
 from apps.products.filters import CategoryFilter, ProductFilter
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 from apps.products.permissions import IsOwnerOrReadOnly
-from apps.products.serializers import (CategoryDetailSerializer,
-                                       CategoryListSerializer,
-                                       CategorySerializerSelector,
-                                       ProductCreateUpdateSerializer,
-                                       ProductDetailSerializer,
-                                       ProductImageSerializer,
-                                       ProductInventorySerializer,
-                                       ProductListSerializer,
-                                       ProductPricingSerializer,
-                                       ProductReviewSerializer,
-                                       ProductSerializerSelector,
-                                       ProductSpecificationSerializer,
-                                       StockAdjustmentSerializer)
+from apps.products.serializers import (
+    CategoryDetailSerializer,
+    CategoryListSerializer,
+    CategorySerializerSelector,
+    ProductCreateUpdateSerializer,
+    ProductDetailSerializer,
+    ProductImageSerializer,
+    ProductInventorySerializer,
+    ProductListSerializer,
+    ProductPricingSerializer,
+    ProductReviewSerializer,
+    ProductSerializerSelector,
+    ProductSpecificationSerializer,
+    StockAdjustmentSerializer,
+)
 
 # Set up logging
 logger = structlog.get_logger(__name__)

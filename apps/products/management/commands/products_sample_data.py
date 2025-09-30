@@ -24,8 +24,13 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 
 # Constants for product generation
 DEFAULT_PRODUCT_COUNT = 100

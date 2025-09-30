@@ -16,10 +16,18 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
-                                   SanitizedTextField)
-from apps.products.models import (Category, Product, ProductImage,
-                                  ProductReview, ProductSpecification)
+from apps.core.serializers import (
+    BaseModelSerializer,
+    SanitizedCharField,
+    SanitizedTextField,
+)
+from apps.products.models import (
+    Category,
+    Product,
+    ProductImage,
+    ProductReview,
+    ProductSpecification,
+)
 
 
 class CategoryListSerializer(BaseModelSerializer):

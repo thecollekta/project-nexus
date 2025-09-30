@@ -17,8 +17,7 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import MoneyField
 
-from apps.core.models import (ActiveManager, AllObjectsManager,
-                              AuditStampedModelBase)
+from apps.core.models import ActiveManager, AllObjectsManager, AuditStampedModelBase
 from apps.products.mixins import PriceMixin
 
 
