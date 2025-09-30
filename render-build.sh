@@ -31,6 +31,15 @@ python manage.py migrate --noinput
 echo "--- Setting up superuser ---"
 python manage.py create_superuser_if_none
 
+# Set up Celery beat schedule
+echo "--- Setting up Celery beat schedule ---"
+python manage.py migrate django_celery_beat
+
+# Start Celery worker and beat in the background
+echo "--- Starting Celery processes ---"
+celery -A ecommerce_backend worker -l info --logfile=logs/celery-worker.log --detach
+celery -A ecommerce_backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler --logfile=logs/celery-beat.log --detach
+
 # Load sample product data
 echo "--- Loading sample data ---"
 python manage.py products_sample_data --user=admin --count=50 --with-images --with-specs --scenario=demo
