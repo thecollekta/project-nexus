@@ -129,7 +129,6 @@ DEBUG_TOOLBAR_CONFIG = {
     ),
     "RESULTS_CACHE_SIZE": 10,  # Reduce cache size
     "SQL_WARNING_THRESHOLD": 100,  # Only show slow queries
-    "SHOW_TOOLBAR_CALLBACK": lambda request: DEBUG,  # Only show in DEBUG mode
 }
 
 # Django Money settings
