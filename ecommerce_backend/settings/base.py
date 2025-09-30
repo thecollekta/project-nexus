@@ -40,7 +40,11 @@ env = environ.Env(
     CSRF_COOKIE_SECURE=(bool, False),
     SESSION_EXPIRE_AT_BROWSER_CLOSE=(bool, False),
     SESSION_COOKIE_AGE=(int, "SESSION_COOKIE_AGE"),
+    # Redis & Celery Settings
     REDIS_URL=(str, "REDIS_URL"),
+    CELERY_BROKER_URL=(str, "CELERY_BROKER_URL"),
+    CELERY_RESULT_BACKEND=(str, "CELERY_RESULT_BACKEND"),
+    CELERY_TASK_ALWAYS_EAGER=(bool, "CELERY_TASK_ALWAYS_EAGER"),
     # Sample Data Configuration
     CREATE_SAMPLE_DATA=(bool, True),
     SAMPLE_DATA_SCENARIO=(str, "demo"),
@@ -279,6 +283,12 @@ def get_database_config():
 # Database Configuration
 DATABASES = get_database_config()
 
+# Redis & Celery Settings
+REDIS_URL = env("REDIS_URL")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
+
+
 # Cache settings
 CACHES = {
     "default": {
@@ -287,6 +297,8 @@ CACHES = {
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "IGNORE_EXCEPTIONS": True,
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
         },
         "KEY_PREFIX": "ecommerce",
     },
@@ -315,6 +327,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool(
     "SESSION_EXPIRE_AT_BROWSER_CLOSE", default=False
 )
 SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=1209600)  # 2 weeks default
+SESSION_SAVE_EVERY_REQUEST = True
 
 
 # Authentication backends
@@ -394,16 +407,13 @@ if DEBUG:
 
 # INTERNAL_IPS = env.list("INTERNAL_IPS", default=["127.0.0.1"])  # type: ignore # noqa: F405
 
-
 # Celery Configuration
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
+CELERY_TIMEZONE = "utc"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+CELERY_TASK_ALWAYS_EAGER = env("CELERY_TASK_ALWAYS_EAGER")
 CELERY_TASK_EAGER_PROPAGATES = True
 
 

@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Core settings
 DEBUG = False
+ENVIRONMENT = env("ENVIRONMENT", default="production")  # type: ignore # noqa: F405
 
 # Security settings
 SECURE_SSL_REDIRECT = True
@@ -22,43 +23,6 @@ SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
-# Cache configuration for production
-redis_url = env("REDIS_URL")  # noqa: F405
-
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": redis_url,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,
-            "SOCKET_TIMEOUT": 5,
-            "IGNORE_EXCEPTIONS": True,
-            "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD",
-                default=None,  # type: ignore
-            ),  # noqa: F405 # type: ignore
-            "CONNECTION_POOL_KWARGS": {"max_connections": 100},
-        },
-        "KEY_PREFIX": "ecommerce",
-    },
-    "sessions": {  # Add this missing sessions cache
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": redis_url,  # Use same Redis instance, different logical database
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,
-            "SOCKET_TIMEOUT": 5,
-            "IGNORE_EXCEPTIONS": True,
-            "PASSWORD": env(  # noqa: F405
-                "REDIS_PASSWORD",
-                default=None,  # type: ignore
-            ),  # noqa: F405 # type: ignore
-        },
-        "KEY_PREFIX": "ecommerce_sessions",
-    },
-}
-
 # Session settings for production
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 SESSION_CACHE_ALIAS = "sessions"  # Point to the sessions cache
@@ -67,6 +31,34 @@ CSRF_COOKIE_SECURE = True
 CSRF_USE_SESSIONS = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
+
+# Email settings for production
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = env("EMAIL_HOST")  # noqa: F405
+EMAIL_PORT = env.int("EMAIL_PORT", 587)  # type: ignore # noqa: F405
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", True)  # type: ignore # noqa: F405
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")  # noqa: F405
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")  # noqa: F405
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")  # noqa: F405
+SERVER_EMAIL = env("SERVER_EMAIL")  # noqa: F405
+
+# Cache settings for production (optimized for production)
+CACHES["default"]["OPTIONS"].update(  # noqa: F405
+    {
+        "SOCKET_CONNECT_TIMEOUT": 5,
+        "SOCKET_TIMEOUT": 5,
+        "CONNECTION_POOL_KWARGS": {"max_connections": 100},
+    }
+)
+
+# Add Redis password if provided
+redis_password = env("REDIS_PASSWORD", default=None)  # type: ignore # noqa: F405
+if redis_password:
+    CACHES["default"]["OPTIONS"]["PASSWORD"] = redis_password  # noqa: F405
+
+# Celery settings for production
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
 
 # Static and media files
@@ -92,20 +84,6 @@ if ENABLE_METRICS:
 # Admin URL
 ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")  # type: ignore # noqa: F405
 
-# Sentry configuration (if using)
-# if "SENTRY_DSN" in env:  # noqa: F405
-#     import sentry_sdk  # type: ignore
-#     from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
-
-#     sentry_sdk.init(
-#         dsn=env("SENTRY_DSN"),  # noqa: F405
-#         integrations=[DjangoIntegration()],
-#         send_default_pii=True,
-#         environment=env(  # noqa: F405 # type: ignore
-#             "ENVIRONMENT",
-#             default="production",  # type: ignore
-#         ),
-#     )
 
 # Performance optimizations
 TEMPLATES[0]["OPTIONS"]["debug"] = False  # noqa: F405
