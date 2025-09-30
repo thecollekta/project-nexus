@@ -27,6 +27,10 @@ echo "--- Applying database migrations ---"
 python manage.py makemigrations --noinput || echo "No new migrations detected"
 python manage.py migrate --noinput
 
+# Create superuser using environment variables
+echo "--- Setting up superuser ---"
+python manage.py create_superuser_if_none
+
 # Load sample product data
 echo "--- Loading sample data ---"
 python manage.py products_sample_data --user=admin --count=50 --with-images --with-specs --scenario=demo
@@ -37,10 +41,6 @@ python manage.py orders_sample_data --count 50
 # Collect static files
 echo "--- Collecting static files ---"
 python manage.py collectstatic --noinput --clear
-
-# Create superuser using environment variables
-echo "--- Setting up superuser ---"
-python manage.py create_superuser_if_none
 
 # Validate installation
 echo "--- Validating Django installation ---"
