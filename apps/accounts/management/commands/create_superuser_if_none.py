@@ -1,3 +1,5 @@
+# apps/accounts/management/commands/
+
 import os
 import sys
 
@@ -29,16 +31,37 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
 
-        # Check if superuser already exists
-        if User.objects.filter(is_superuser=True).exists():
-            self.stdout.write(
-                self.style.SUCCESS("Superuser already exists. Skipping creation.")
-            )
-            return
-
         username = options["username"]
         email = options["email"]
         password = options["password"]
+
+        # Check if superuser already exists with this email
+        if User.objects.filter(email=email, is_superuser=True).exists():
+            self.stdout.write(
+                self.style.SUCCESS(f"Superuser with email {email} already exists.")
+            )
+            return
+
+        # Check if there's a user with admin username but wrong email
+        if User.objects.filter(username=username).exists():
+            user = User.objects.get(username=username)
+            if user.email != email:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"User '{username}' exists with email {user.email}. Updating to {email} and making superuser."
+                    )
+                )
+                user.email = email
+                user.is_superuser = True
+                user.is_staff = True
+                user.set_password(password)
+                user.save()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Updated user '{username}' to superuser with email {email}"
+                    )
+                )
+                return
 
         # Validate password
         if not password:
@@ -54,7 +77,7 @@ class Command(BaseCommand):
 
         try:
             # Create superuser
-            User.objects.create_superuser(  # type: ignore
+            User.objects.create_superuser(
                 username=username, email=email, password=password
             )
 
@@ -65,6 +88,21 @@ class Command(BaseCommand):
 
         except IntegrityError:
             self.stdout.write(self.style.ERROR(f'User "{username}" already exists.'))
+            # Try to update existing user to superuser
+            try:
+                user = User.objects.get(username=username)
+                user.is_superuser = True
+                user.is_staff = True
+                user.email = email
+                user.set_password(password)
+                user.save()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Updated existing user '{username}' to superuser"
+                    )
+                )
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error updating user: {e}"))
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error creating superuser: {e}"))
             sys.exit(1)
