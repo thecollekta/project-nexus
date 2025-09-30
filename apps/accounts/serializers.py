@@ -188,6 +188,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             **validated_data,
         )
 
+        # Trigger email verification
+        from apps.accounts.tasks import send_verification_email
+
+        send_verification_email.delay(user.id)
+
         # Generate email verification token
         return user
 
