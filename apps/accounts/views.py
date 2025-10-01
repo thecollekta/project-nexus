@@ -16,28 +16,25 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.openapi import OpenApiExample
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import (OpenApiResponse, extend_schema,
+                                   extend_schema_view)
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.token_blacklist.models import (
-    BlacklistedToken,
-    OutstandingToken,
-)
+from rest_framework_simplejwt.token_blacklist.models import (BlacklistedToken,
+                                                             OutstandingToken)
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts import serializers
 from apps.accounts.models import User
-from apps.accounts.serializers import (
-    PasswordChangeSerializer,
-    PasswordResetConfirmSerializer,
-    PasswordResetSerializer,
-    UserLoginSerializer,
-    UserProfileSerializer,
-    UserRegistrationSerializer,
-)
+from apps.accounts.serializers import (PasswordChangeSerializer,
+                                       PasswordResetConfirmSerializer,
+                                       PasswordResetSerializer,
+                                       UserLoginSerializer,
+                                       UserProfileSerializer,
+                                       UserRegistrationSerializer)
 from apps.accounts.tasks import send_verification_email
 from apps.core.throttling import CreateAccountRateThrottle, LoginRateThrottle
 from apps.core.views import BaseViewSet
