@@ -17,7 +17,9 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import MoneyField
 
-from apps.core.models import ActiveManager, AllObjectsManager, AuditStampedModelBase
+from apps.core.fields import HybridImageField
+from apps.core.models import (ActiveManager, AllObjectsManager,
+                              AuditStampedModelBase)
 from apps.products.mixins import PriceMixin
 
 
@@ -69,11 +71,11 @@ class Category(AuditStampedModelBase):
         db_index=True,
     )
 
-    image = models.ImageField(
+    image = HybridImageField(
         upload_to="categories/images/",
         blank=True,
         null=True,
-        help_text=_("Category image"),
+        help_text=_("Category image - can be a local file or remote URL"),
     )
 
     icon = models.CharField(
@@ -411,11 +413,11 @@ class Product(AuditStampedModelBase, PriceMixin):
     )
 
     # Media
-    featured_image = models.ImageField(
+    featured_image = HybridImageField(
         upload_to="products/images/",
         null=True,
         blank=True,
-        help_text=_("Primary product image"),
+        help_text=_("Primary product image - can be a local file or remote URL"),
     )
 
     # Status flags
@@ -589,9 +591,9 @@ class ProductImage(AuditStampedModelBase):
         help_text=_("Product this image belongs to"),
     )
 
-    image = models.ImageField(
+    image = HybridImageField(
         upload_to="products/gallery/",
-        help_text=_("Product image"),
+        help_text=_("Product image - can be a local file or remote URL"),
     )
 
     alt_text = models.CharField(
