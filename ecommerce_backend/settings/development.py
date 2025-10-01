@@ -32,9 +32,9 @@ MIDDLEWARE += [  # noqa: F405
 ]  # For API requests
 
 # Celery settings for development
-CELERY_TASK_ALWAYS_EAGER = env.bool(
-    "CELERY_TASK_ALWAYS_EAGER", default=False
-)  # noqa: F405
+CELERY_TASK_ALWAYS_EAGER = env.bool(  # noqa: F405
+    "CELERY_TASK_ALWAYS_EAGER", default=False # type: ignore
+)
 CELERY_TASK_EAGER_PROPAGATES = True
 
 # Cache settings for development (more permissive timeouts)
