@@ -16,18 +16,11 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.core.serializers import (
-    BaseModelSerializer,
-    SanitizedCharField,
-    SanitizedTextField,
-)
-from apps.products.models import (
-    Category,
-    Product,
-    ProductImage,
-    ProductReview,
-    ProductSpecification,
-)
+from apps.core.fields import HybridImageValue
+from apps.core.serializers import (BaseModelSerializer, SanitizedCharField,
+                                   SanitizedTextField)
+from apps.products.models import (Category, Product, ProductImage,
+                                  ProductReview, ProductSpecification)
 
 
 class CategoryListSerializer(BaseModelSerializer):
@@ -213,9 +206,10 @@ class CategoryCreateUpdateSerializer(BaseModelSerializer):
 
 class ProductImageSerializer(BaseModelSerializer):
     """
-    Serializer for product images.
+    Serializer for product images that handles both local and remote URLs.
     """
 
+    image = serializers.SerializerMethodField()
     alt_text = SanitizedCharField(max_length=255, required=False, allow_blank=True)
 
     class Meta(BaseModelSerializer.Meta):
@@ -227,6 +221,67 @@ class ProductImageSerializer(BaseModelSerializer):
             "sort_order",
             "is_primary",
         ]
+        read_only_fields: ClassVar[list] = [
+            *BaseModelSerializer.Meta.read_only_fields,
+        ]
+
+    def get_image(self, obj) -> dict:
+        """Handle both local and remote image URLs."""
+        if not obj.image:
+            return {"url": "", "is_remote": False, "filename": ""}
+
+        # Handle HybridImageValue objects
+        if isinstance(obj.image, HybridImageValue):
+            if obj.image.is_remote:
+                return {
+                    "url": obj.image.url,
+                    "is_remote": True,
+                    "filename": (
+                        obj.image.url.split("/")[-1]
+                        if obj.image.url and "/" in obj.image.url
+                        else obj.image.url or ""
+                    ),
+                }
+            elif obj.image.file:
+                request = self.context.get("request")
+                url = (
+                    request.build_absolute_uri(obj.image.file.url)
+                    if request
+                    else obj.image.file.url
+                )
+                return {
+                    "url": url,
+                    "is_remote": False,
+                    "filename": (
+                        obj.image.file.name.split("/")[-1]
+                        if hasattr(obj.image.file, "name")
+                        else "image"
+                    ),
+                }
+            else:
+                return {"url": obj.image.path, "is_remote": False}
+
+        # Handle legacy string values
+        image_value = str(obj.image)
+        if image_value.startswith(("http://", "https://")):
+            return {
+                "url": image_value,
+                "is_remote": True,
+                "filename": image_value.split("/")[-1],
+            }
+        else:
+            request = self.context.get("request")
+            if request and hasattr(obj.image, "url"):
+                url = request.build_absolute_uri(obj.image.url)
+            else:
+                url = image_value
+            return {
+                "url": url,
+                "is_remote": False,
+                "filename": (
+                    image_value.split("/")[-1] if "/" in image_value else image_value
+                ),
+            }
 
     def validate_sort_order(self, value: int) -> int:
         """Ensure sort_order is non-negative."""
@@ -332,16 +387,52 @@ class ProductListSerializer(BaseModelSerializer):
             "review_count",
         ]
 
+    def get_featured_image(self, obj) -> dict:
+        """Handle featured image URL properly."""
+        return self._get_image_data(obj.featured_image)
+
+    def _get_image_data(self, image_field) -> dict:
+        """Generic method to handle image field data."""
+        if not image_field:
+            return {"url": "", "is_remote": False}
+
+        # Handle HybridImageValue objects
+        if isinstance(image_field, HybridImageValue):
+            if image_field.is_remote:
+                return {"url": image_field.url, "is_remote": True}
+            elif image_field.file:
+                request = self.context.get("request")
+                url = (
+                    request.build_absolute_uri(image_field.file.url)
+                    if request
+                    else image_field.file.url
+                )
+                return {"url": url, "is_remote": False}
+            else:
+                return {"url": image_field.path, "is_remote": False}
+
+        # Handle legacy string values
+        image_value = str(image_field)
+        if image_value.startswith(("http://", "https://")):
+            return {"url": image_value, "is_remote": True}
+        else:
+            request = self.context.get("request")
+            if request and hasattr(image_field, "url"):
+                url = request.build_absolute_uri(image_field.url)
+            else:
+                url = image_value
+            return {"url": url, "is_remote": False}
+
     def get_images_count(self, obj: Product) -> int:
         """Get count of product images."""
         return obj.images.filter(is_active=True).count()
 
-    @extend_schema_field(OpenApiTypes.DECIMAL)
-    def get_price(self, obj) -> Decimal:
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_price(self, obj) -> dict[str, str]:
         return {"amount": str(obj.price.amount), "currency": str(obj.price.currency)}
 
-    @extend_schema_field(OpenApiTypes.DECIMAL)
-    def get_compare_at_price(self, obj) -> Decimal | None:
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_compare_at_price(self, obj) -> dict[str, str] | None:
         if obj.compare_at_price:
             return {
                 "amount": str(obj.compare_at_price.amount),
@@ -367,6 +458,7 @@ class ProductDetailSerializer(BaseModelSerializer):
     """
 
     category = CategoryListSerializer(read_only=True)
+    featured_image = serializers.SerializerMethodField()
     images = ProductImageSerializer(many=True, read_only=True)
     specifications = ProductSpecificationSerializer(many=True, read_only=True)
 
@@ -431,8 +523,43 @@ class ProductDetailSerializer(BaseModelSerializer):
             "reviews",
         ]
 
-    @extend_schema_field(OpenApiTypes.DECIMAL)
-    def get_cost_price(self, obj) -> Decimal | None:
+    def get_featured_image(self, obj) -> dict:
+        """Handle featured image URL properly."""
+        return self._get_image_data(obj.featured_image)
+
+    def _get_image_data(self, image_field) -> dict:
+        """Generic method to handle image field data."""
+        # Same implementation as in ProductListSerializer
+        if not image_field:
+            return None
+
+        if isinstance(image_field, HybridImageValue):
+            if image_field.is_remote:
+                return {"url": image_field.url, "is_remote": True}
+            elif image_field.file:
+                request = self.context.get("request")
+                url = (
+                    request.build_absolute_uri(image_field.file.url)
+                    if request
+                    else image_field.file.url
+                )
+                return {"url": url, "is_remote": False}
+            else:
+                return {"url": image_field.path, "is_remote": False}
+
+        image_value = str(image_field)
+        if image_value.startswith(("http://", "https://")):
+            return {"url": image_value, "is_remote": True}
+        else:
+            request = self.context.get("request")
+            if request and hasattr(image_field, "url"):
+                url = request.build_absolute_uri(image_field.url)
+            else:
+                url = image_value
+            return {"url": url, "is_remote": False}
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_cost_price(self, obj) -> dict[str, str] | None:
         if obj.cost_price:
             return {
                 "amount": str(obj.cost_price.amount),
