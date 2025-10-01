@@ -16,37 +16,28 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-    extend_schema_view,
-)
+from drf_spectacular.utils import (OpenApiParameter, OpenApiResponse,
+                                   extend_schema, extend_schema_view)
 from rest_framework import filters, permissions, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
 from apps.core.pagination import StandardResultsSetPagination
 from apps.core.views import BaseViewSet
 from apps.orders.models import Cart, CartItem, Order
-from apps.orders.serializers import (
-    AddToCartSerializer,
-    CartSerializer,
-    OrderCancelSerializer,
-    OrderCreateSerializer,
-    OrderSerializer,
-    OrderShipmentSerializer,
-    OrderSummarySerializer,
-    OrderTrackingSerializer,
-    OrderUpdateSerializer,
-    ProductAvailabilitySerializer,
-    UpdateCartItemSerializer,
-)
-from apps.orders.tasks import (
-    send_order_confirmation_email_task,
-    send_shipping_notification_task,
-)
+from apps.orders.serializers import (AddToCartSerializer, CartSerializer,
+                                     OrderCancelSerializer,
+                                     OrderCreateSerializer, OrderSerializer,
+                                     OrderShipmentSerializer,
+                                     OrderSummarySerializer,
+                                     OrderTrackingSerializer,
+                                     OrderUpdateSerializer,
+                                     ProductAvailabilitySerializer,
+                                     UpdateCartItemSerializer)
+from apps.orders.tasks import (send_order_confirmation_email_task,
+                               send_shipping_notification_task)
 from apps.orders.utils import InventoryManager
 from apps.products.models import Product
 
